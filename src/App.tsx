@@ -126,7 +126,7 @@ export default function App() {
   const reorder = (index: number, direction: -1 | 1) => { const positions = active.flatMap((h, i) => h.group === active[index].group ? [i] : []), neighbor = positions[positions.indexOf(index) + direction]; if (neighbor === undefined) return; const next = [...active]; [next[index], next[neighbor]] = [next[neighbor], next[index]]; void act(() => repository.reorder(next)); };
   return <div className="app" data-theme={mode} data-heat={data.settings.theme}>
     <nav className="bottom-nav" aria-label="Main navigation">{tabs.map(([id, Icon, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} className={view === id ? 'active' : ''} onClick={() => navigate(id)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-    <main><header className="topbar"><button className="brand" aria-label="DailyCommit home" onClick={tapLogo}><span className="brand-mark"><i/><i/><i/><i/></span>DailyCommit</button>{!online && <span className="offline-status"><WifiOff size={14}/>Offline</span>}</header>
+    <main><header className="topbar"><button className="brand" aria-label="DailyCommit home" onClick={tapLogo}><span className="brand-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <i key={i}/>)}</span>DailyCommit</button>{!online && <span className="offline-status"><WifiOff size={14}/>Offline</span>}</header>
     <div className="content">
       {demo && <div className="demo-banner"><Sparkles size={17}/>Sample data<button onClick={() => setDemo(false)}>Exit <X size={14}/></button></div>}
       {needRefresh && <div className="demo-banner">Update ready<button disabled={!!editor || !!importData} onClick={() => void updateServiceWorker(true)}>Refresh</button></div>}

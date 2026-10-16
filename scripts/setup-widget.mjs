@@ -10,14 +10,18 @@ try { manifest = await readFile(manifestPath, 'utf8'); } catch { throw new Error
 const java = join(base, 'java', 'app', 'dailycommit', 'mobile');
 for (const folder of await readdir(join(base, 'res'))) {
   if (folder.startsWith('mipmap-') && folder !== 'mipmap-anydpi-v26') {
-    for (const name of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']) await copyFile(join(root, 'public', 'icon-512.png'), join(base, 'res', folder, name));
+    for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) await copyFile(join(root, 'public', 'icon-512.png'), join(base, 'res', folder, name));
   }
 }
 await mkdir(java, { recursive: true });
 for (const name of ['DailyCommitWidgetPlugin.java', 'DailyCommitWidgetProvider.java', 'WidgetActions.java']) await copyFile(join(root, 'native', 'android', name), join(java, name));
-for (const [folder, name] of [['layout', 'dailycommit_widget.xml'], ['layout', 'widget_quick_row.xml'], ['drawable', 'widget_background.xml'], ['drawable', 'widget_background_light.xml'], ['drawable', 'ic_notification.xml'], ['drawable', 'dailycommit_splash.xml'], ['values', 'styles.xml'], ['xml', 'dailycommit_widget_info.xml']]) {
+for (const [folder, name] of [['layout', 'dailycommit_widget.xml'], ['layout', 'widget_quick_row.xml'], ['drawable', 'widget_background.xml'], ['drawable', 'widget_background_light.xml'], ['drawable', 'dailycommit_foreground.xml'], ['drawable', 'dailycommit_monochrome.xml'], ['drawable', 'ic_notification.xml'], ['drawable', 'dailycommit_splash.xml'], ['values', 'styles.xml'], ['xml', 'dailycommit_widget_info.xml']]) {
   await mkdir(join(base, 'res', folder), { recursive: true });
   await copyFile(join(root, 'native', 'android', name), join(base, 'res', folder, name));
+}
+for (const [folder, template] of [['mipmap-anydpi-v26', 'ic_launcher.xml'], ['mipmap-anydpi-v33', 'ic_launcher_themed.xml']]) {
+  await mkdir(join(base, 'res', folder), { recursive: true });
+  for (const name of ['ic_launcher.xml', 'ic_launcher_round.xml']) await copyFile(join(root, 'native', 'android', template), join(base, 'res', folder, name));
 }
 await writeFile(join(base, 'res', 'values', 'ic_launcher_background.xml'), '<?xml version="1.0" encoding="utf-8"?><resources><color name="ic_launcher_background">#0B0D12</color></resources>\n');
 await writeFile(join(java, 'MainActivity.java'), `package app.dailycommit.mobile;

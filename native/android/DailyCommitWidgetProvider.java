@@ -130,12 +130,12 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
             JSONArray days = new JSONArray(); local.add(Calendar.DATE, -(count - 1));
             for (int i = 0; i < count; i++) { String date = formatter.format(local.getTime()); JSONObject row = rows.get(date); days.put(row != null ? row : new JSONObject().put("level", -1)); local.add(Calendar.DATE, 1); }
             JSONArray colors = data.optJSONArray("colors"); if (colors == null) colors = new JSONArray("[\"#1A1E28\",\"#4A2A17\",\"#8F4A1F\",\"#E27A2B\",\"#FFB65C\"]");
-            views.setImageViewBitmap(R.id.widget_heatmap, drawHeatmap(days, colors, light ? "#FFFFFF" : "#12151C", count));
+            views.setImageViewBitmap(R.id.widget_heatmap, drawHeatmap(days, colors, light ? "#E7E2DA" : "#252B38", light ? "#CEC8BF" : "#363F50", count));
             views.setContentDescription(R.id.widget_heatmap, count / 7 + " weeks of habit activity. Open DailyCommit for details.");
         } catch (Exception ignored) { views.setTextViewText(R.id.widget_hint, "Open DailyCommit to refresh"); }
         manager.updateAppWidget(id, views);
     }
-    private static Bitmap drawHeatmap(JSONArray days, JSONArray colors, String restColor, int count) throws Exception {
+    private static Bitmap drawHeatmap(JSONArray days, JSONArray colors, String restColor, String gridColor, int count) throws Exception {
         int cell = 22, gap = 6, rows = 7, columns = count / rows;
         Bitmap bitmap = Bitmap.createBitmap(columns * (cell + gap), rows * (cell + gap), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap); Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -144,6 +144,11 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
             paint.setColor(level < 0 ? Color.parseColor(restColor) : Color.parseColor(colors.getString(Math.min(level, 4))));
             float x = (i / rows) * (cell + gap), y = (i % rows) * (cell + gap);
             canvas.drawRoundRect(x, y, x + cell, y + cell, 4, 4, paint);
+            if (level <= 0) {
+                paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.2f); paint.setColor(Color.parseColor(gridColor));
+                canvas.drawRoundRect(x + .6f, y + .6f, x + cell - .6f, y + cell - .6f, 4, 4, paint);
+                paint.setStyle(Paint.Style.FILL);
+            }
         }
         return bitmap;
     }
