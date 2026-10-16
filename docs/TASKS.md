@@ -1,6 +1,6 @@
 # DailyCommit status and remaining tasks
 
-The reference plan informs the product; the user's instructions prioritize the Android widget, start with Ember and unlock additional colors, and defer testing. The original action-plan file has not been changed. These work packages are a backlog, not separate chats or scheduled jobs.
+The reference plan informs the product; the user's instructions prioritize the Android widget, start with Ember and unlock additional colors, and leave manual phone/widget checks to the owner. Automated source checks are now authorized. The original action-plan file has not been changed. These work packages are a backlog, not separate chats or scheduled jobs.
 
 ## Implemented
 
@@ -43,7 +43,7 @@ The reference plan informs the product; the user's instructions prioritize the A
 
 Cloud sync/accounts, shared habits, public profiles, XP and photo proof remain optional. Timers, negative habits and habit stacks are excluded from the current plan by the October 16 request. The latest request adds Cyan at 50 active days and Neon Green at 100, with permanent badge rewards and Settings selection. Weekly percentage reviews are implemented; broader analytics remain optional.
 
-All planned v1.5 app features now have implementations. Compilation checks do not replace feature or device tests. No repository or site has been published during this session.
+All planned v1.5 app features now have implementations. Compilation checks do not replace feature or device tests. The project is published to github.com/kailashp-27/DailyCommit. Netlify deployment remains deferred.
 
 ## October 13 layout update
 
