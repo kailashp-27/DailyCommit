@@ -1,0 +1,10 @@
+import 'fake-indexeddb/auto';
+import { afterEach, expect, it } from 'vitest';
+import { db, parseBackup, repository } from './repository';
+import { defaults, type Snapshot } from './domain';
+const fixture: Snapshot = {habits:[{id:'h1',name:'Read',icon:'book',color:'#b1ef79',schedule:{kind:'daily'},createdAt:'2026-01-01',archivedAt:null,order:0,revisions:[]}],completions:[],skips:[],settings:defaults};
+afterEach(async () => { await repository.restore({habits:[],completions:[],skips:[],settings:defaults}); });
+it('round-trips an export into clean storage', async () => { await repository.restore(fixture); await repository.setDay('h1','2026-10-10','done'); const saved=await repository.read(); const imported=parseBackup(JSON.stringify({version:1,data:saved})); await repository.restore({habits:[],completions:[],skips:[],settings:defaults}); await repository.restore(imported); expect(await repository.read()).toEqual(saved); });
+it('keeps one completion per habit per day, and skips mutually exclusive', async () => { await repository.restore(fixture); await repository.setDay('h1','2026-10-10','done'); await repository.setDay('h1','2026-10-10','done'); expect(await db.completions.count()).toBe(1); await repository.setDay('h1','2026-10-10','skip'); expect(await db.completions.count()).toBe(0); expect(await db.skips.count()).toBe(1); });
+it('rejects invalid dates, duplicates and orphaned completions', () => { const invalid={...fixture,completions:[{id:'x:2026-02-30',habitId:'x',date:'2026-02-30',value:1,completedAt:new Date().toISOString()}]}; expect(()=>parseBackup(JSON.stringify({version:1,data:invalid}))).toThrow(); expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,habits:[...fixture.habits,...fixture.habits]}}))).toThrow(); });
+it('rejects unsafe settings and malformed schedules', () => { expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,settings:{...defaults,rolloverHour:25}}}))).toThrow(); expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,habits:[{...fixture.habits[0],schedule:{kind:'weekly',target:9}}]}}))).toThrow(); });
