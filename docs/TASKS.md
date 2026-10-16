@@ -36,14 +36,14 @@ The reference plan informs the product; the user's instructions prioritize the A
 
 ## Remaining — Publication
 
-- [ ] **SHIP-01** — GitHub is published and build workflows run successfully. Netlify linking, a final HTTPS URL and preview deployments remain deferred.
+- [ ] **SHIP-01** — GitHub is published and build workflows run successfully. Netlify Drop deployment and a final HTTPS URL are complete; automatic GitHub linking and preview deployments are optional future work.
 - [ ] **SHIP-02** — Record a short demo and tag v1 after validation. Debug APKs produced by CI are development artifacts; a production Android release needs signing.
 
 ## Optional / parked
 
 Cloud sync/accounts, shared habits, public profiles, XP and photo proof remain optional. Timers, negative habits and habit stacks are excluded from the current plan by the October 16 request. The latest request adds Cyan at 50 active days and Neon Green at 100, with permanent badge rewards and Settings selection. Weekly percentage reviews are implemented; broader analytics remain optional.
 
-All planned v1.5 app features now have implementations. Compilation checks do not replace feature or device tests. The project is published to github.com/kailashp-27/DailyCommit. Netlify deployment remains deferred.
+All planned v1.5 app features now have implementations. Compilation checks do not replace feature or device tests. The project is published to github.com/kailashp-27/DailyCommit. The verified PWA is deployed at https://dailycommit-kailashp27.netlify.app/.
 
 ## October 13 layout update
 

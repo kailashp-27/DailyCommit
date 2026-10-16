@@ -90,3 +90,8 @@ Published the project to https://github.com/kailashp-27/DailyCommit on main. All
 GitHub Actions run https://github.com/kailashp-27/DailyCommit/actions/runs/38907872075 passed both web and Android jobs for code commit 778d80a. The Android job used JDK 21 / SDK 36 and ran assembleDebug, testDebugUnitTest and lintDebug successfully. Four meaningful native WidgetActions JVM checks cover queued check-in identity/date isolation, snapshot preservation, weekly quota suppression, reconciliation deduplication, and partial/rest-day graph overlays. The generated instrumented app-identity assertion was corrected to app.dailycommit.mobile; device instrumentation was not run.
 
 Artifacts: android-debug-apk and web-app. The APK is a development build for owner-performed manual checks, not a signed production release. See docs/ANDROID.md for installation and the manual checklist. No emulator/phone, launcher, notification-delivery or real-device widget claim is implied by CI success. The final documentation-only follow-up skips CI because it changes no executable code.
+
+
+## October 16 — production PWA publication
+
+Published https://dailycommit-kailashp27.netlify.app/ via Netlify Drop, with the verified debug APK at /downloads/DailyCommit-0.1.0-debug.apk. Verified HTTP 200 responses for the manifest, service worker and APK; the public APK SHA-256 matches the successful GitHub artifact. The manifest is served as application/manifest+json; sw.js is no-cache. At mobile size the live app renders without horizontal overflow, and the owner-approved removal of the Netlify badge leaves all four bottom navigation buttons visible. No phone/widget or reminder-delivery result is implied. See DEPLOYMENT.md for the manual update process and data transfer notes.

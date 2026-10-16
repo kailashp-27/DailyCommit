@@ -2,6 +2,8 @@
 
 Small habits. A year of progress. A local-first React PWA with an Android companion for a real home-screen contribution widget.
 
+[Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.0-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
+
 ![DailyCommit mobile layout in dark Ember](docs/preview-mobile.png)
 
 ## Run
@@ -48,9 +50,9 @@ Habit schedules are effective from the day of an edit; old revisions remain inta
 
 This is a development foundation, not a released v1. The PWA and Android debug APK compile successfully in GitHub Actions. Real-phone installation, widget lifecycle checks, Lighthouse and longer-term durability checks remain pending. The project owner will perform manual phone/widget checks. See [task backlog](docs/TASKS.md) and [architecture decisions](docs/ARCHITECTURE.md).
 
-The remaining planned app features are implemented. GitHub workflows build the web app and debug APK, and issue templates are ready. Automated checks and the production PWA build pass locally. GitHub Actions runs the checks and builds the web app and an installable debug APK, including Android lint and JVM checks. Phone/widget validation is performed manually by the project owner. Netlify deployment and signed production Android distribution remain separate.
+The remaining planned app features are implemented. GitHub workflows build the web app and debug APK, and issue templates are ready. Automated checks and the production PWA build pass locally. GitHub Actions runs the checks and builds the web app and an installable debug APK, including Android lint and JVM checks. Phone/widget validation is performed manually by the project owner. The PWA is deployed to Netlify; signed production Android distribution remains separate.
 
-The action-plan document supplied as reference has not been changed. The user's explicit widget priority overrides its “later” placement. Repository: https://github.com/kailashp-27/DailyCommit. No website deployment is performed by the build workflow.
+The action-plan document supplied as reference has not been changed. The user's explicit widget priority overrides its “later” placement. Repository: https://github.com/kailashp-27/DailyCommit. The build workflow does not deploy; the initial Netlify publication used a manual verified-build upload.
 
 ## Download an APK for manual checks
 
