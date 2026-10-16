@@ -9,7 +9,7 @@ let manifest;
 try { manifest = await readFile(manifestPath, 'utf8'); } catch { throw new Error('Run npx cap add android first.'); }
 const java = join(base, 'java', 'app', 'dailycommit', 'mobile');
 for (const folder of await readdir(join(base, 'res'))) {
-  if (folder.startsWith('mipmap-') && folder !== 'mipmap-anydpi-v26') {
+  if (/^mipmap-(mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi)$/.test(folder)) {
     for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) await copyFile(join(root, 'public', 'icon-512.png'), join(base, 'res', folder, name));
   }
 }
