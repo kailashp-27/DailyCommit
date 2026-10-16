@@ -2,7 +2,7 @@
 
 Small habits. A year of progress. A local-first React PWA with an Android companion for a real home-screen contribution widget.
 
-[Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.0-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
+[Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.1-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
 
 ![DailyCommit mobile layout in dark Ember](docs/preview-mobile.png)
 
