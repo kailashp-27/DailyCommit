@@ -49,7 +49,7 @@ If editing MainActivity or the native theme later, update the setup script/templ
 
 ## Verification pending
 
-Compilation requires the local SDK/JDK setup. Real-device tests must cover resize, multiple instances, launcher restart, reboot, stale date, rollover, themes, restored backups and offline check-in. The PWA tests do not establish native Android behavior.
+GitHub Actions compiles the debug APK and runs Android lint with SDK 36/JDK 21. Local compilation still requires the SDK/JDK setup above. Real-device checks must cover resize, multiple instances, launcher restart, reboot, stale date, rollover, themes, restored backups and offline check-in. The PWA tests do not establish native Android behavior.
 
 
 ## Manual phone checklist

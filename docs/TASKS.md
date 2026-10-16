@@ -22,7 +22,7 @@ The reference plan informs the product; the user's instructions prioritize the A
 
 ## Remaining — Android build and device validation
 
-- [ ] **AND-01** — Set up Android SDK and JDK 21, compile and install the debug APK. The current machine has JDK 17 and no Android SDK. Native source is implemented and synchronized; native compilation is not yet established.
+- [ ] **AND-01** — Download and install the debug APK from GitHub Actions. Native compilation and Android lint passed in GitHub Actions with JDK 21/SDK 36. Local Android tooling is optional for manual testing of the downloadable APK.
 - [ ] **AND-02** — Check launcher pinning, counts, numeric progress, resize, multiple instances, theme changes, reboot, process death, timezone changes and configured rollover on the actual phone.
 - [ ] **AND-03** — Validate projection-based background updates under battery saver and long periods without opening the app. Alarms are inexact; delivery can be delayed. Outside the one-year projection horizon the widget asks to reopen the app.
 - [ ] **AND-04** — Check reminder permission, daily delivery, reboot recovery, time changes and disabling reminders on the phone.
@@ -36,7 +36,7 @@ The reference plan informs the product; the user's instructions prioritize the A
 
 ## Remaining — Publication
 
-- [ ] **SHIP-01** — Publish/link GitHub and Netlify, choose final HTTPS URL, run the prepared build workflows and configure preview deployments.
+- [ ] **SHIP-01** — GitHub is published and build workflows run successfully. Netlify linking, a final HTTPS URL and preview deployments remain deferred.
 - [ ] **SHIP-02** — Record a short demo and tag v1 after validation. Debug APKs produced by CI are development artifacts; a production Android release needs signing.
 
 ## Optional / parked

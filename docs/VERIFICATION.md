@@ -81,3 +81,12 @@ No deployment, APK compilation, or phone/widget test was performed. Native notif
 Added Cyan (50 distinct completed-habit days) and Neon Green (100). Days can have gaps and multiple habits on one date count once. Permanent reward IDs gate theme selection and survive older backup restores. Six badge tiles are shown initially; earned collections can expand and advanced badges stay secret until earned. Unsupported feature badges are hidden.
 
 All 43 logic checks passed across seven files, including exact 49/50/99/100 thresholds, partial/future/orphan exclusions, distinct dates, gaps, permanence, locked-theme enforcement, backup v4, light/dark palettes, and widget snapshot accent/color consistency. Production TypeScript/Vite/PWA build passed. In-app browser verified mobile Settings locked color previews, Activity active-day progress, and six discoverable upcoming badges while secret unearned badges stay absent. Existing port-5188 user records were not changed. The stopped DailyCommit server was restarted on port 5188; shared services were left running. Device delivery, APK and deployment remain deferred.
+
+
+## October 16 — GitHub publication and native build
+
+Published the project to https://github.com/kailashp-27/DailyCommit on main. All 43 Vitest app/domain/repository/widget checks passed locally and again in GitHub Actions; TypeScript/Vite/PWA build and Capacitor sync succeeded. No hosting deployment was performed.
+
+GitHub Actions run https://github.com/kailashp-27/DailyCommit/actions/runs/38907872075 passed both web and Android jobs for code commit 778d80a. The Android job used JDK 21 / SDK 36 and ran assembleDebug, testDebugUnitTest and lintDebug successfully. Four meaningful native WidgetActions JVM checks cover queued check-in identity/date isolation, snapshot preservation, weekly quota suppression, reconciliation deduplication, and partial/rest-day graph overlays. The generated instrumented app-identity assertion was corrected to app.dailycommit.mobile; device instrumentation was not run.
+
+Artifacts: android-debug-apk and web-app. The APK is a development build for owner-performed manual checks, not a signed production release. See docs/ANDROID.md for installation and the manual checklist. No emulator/phone, launcher, notification-delivery or real-device widget claim is implied by CI success. The final documentation-only follow-up skips CI because it changes no executable code.

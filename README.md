@@ -46,7 +46,7 @@ Habit schedules are effective from the day of an edit; old revisions remain inta
 
 ## Status and next work
 
-This is a development foundation, not a released v1. Real-phone installation, Android APK compilation, widget lifecycle testing, Lighthouse and the 14-day durability gate remain required. See [task backlog](docs/TASKS.md) and [architecture decisions](docs/ARCHITECTURE.md).
+This is a development foundation, not a released v1. The PWA and Android debug APK compile successfully in GitHub Actions. Real-phone installation, widget lifecycle checks, Lighthouse and longer-term durability checks remain pending. The project owner will perform manual phone/widget checks. See [task backlog](docs/TASKS.md) and [architecture decisions](docs/ARCHITECTURE.md).
 
 The remaining planned app features are implemented. GitHub workflows build the web app and debug APK, and issue templates are ready. Automated checks and the production PWA build pass locally. GitHub Actions runs the checks and builds the web app and an installable debug APK, including Android lint and JVM checks. Phone/widget validation is performed manually by the project owner. Netlify deployment and signed production Android distribution remain separate.
 
