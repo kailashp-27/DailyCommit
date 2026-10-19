@@ -1,6 +1,6 @@
-# 0.1.2 — local development, October 18, 2026
+# 0.1.2 — published October 19, 2026
 
-This version has not been pushed, deployed or packaged into a new APK. The published PWA and 0.1.1 APK are unchanged.
+Source commit `bfd961984ca78b378208dff2630098da219e6f4c` was pushed to main and passed GitHub Actions run [39247440581](https://github.com/kailashp-27/DailyCommit/actions/runs/39247440581). The updated PWA and testing APK are published on the existing Netlify domain.
 
 ## Changes
 
@@ -21,4 +21,4 @@ This version has not been pushed, deployed or packaged into a new APK. The publi
 
 ## Remaining validation
 
-The full 0.1.2 APK and Android lint have not been run. This machine lacks the configured Android SDK/JDK 21; the pure Java geometry checks used JDK 17. No remote build was triggered because this session is local-only. A packaged APK still needs phone checks for notification actions, cold start, resize/orientation, multiple widget instances and launcher behavior. Browser previews and geometry tests do not establish Android rendering or notification delivery.
+GitHub Actions compiled the full APK and passed Android unit tests and lint with SDK 36/JDK 21. The live PWA update was applied and the deployed search/filter and collapse controls were confirmed with no warning/error logs. The public APK download matches the CI artifact (4,462,895 bytes; SHA-256 `e2ff244b7d537fe95a1eb320bbb900dd5f3bffd9ed63c10e30a98e8a571e4db4`). Phone checks remain for notification actions, cold start, resize/orientation, multiple widget instances and launcher behavior. Build checks and browser previews do not establish Android launcher rendering or notification delivery.

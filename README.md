@@ -2,9 +2,9 @@
 
 Small habits. A year of progress. A local-first React PWA with an Android companion for a real home-screen contribution widget.
 
-[Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.1-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
+[Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.2-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
 
-Local work is now version 0.1.2: habit details, reminder actions, collapsible groups, search/filter, revised beginner badge rules and responsive full-range widget grids. See [changes and verification](docs/VERSION-0.1.2.md). These changes have not been pushed or deployed; the links above still serve the previous release.
+Version 0.1.2 is published: habit details, reminder actions, collapsible groups, search/filter, revised beginner badge rules and responsive full-range widget grids. See [changes and verification](docs/VERSION-0.1.2.md). The PWA and testing APK above include these changes. Android build, unit tests and lint passed in GitHub Actions; phone verification of widget resizing and reminder actions remains manual.
 
 ![DailyCommit mobile layout in dark Ember](docs/preview-mobile.png)
 
