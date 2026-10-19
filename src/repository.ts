@@ -213,6 +213,14 @@ export const repository = {
     if (!note.text.trim() && !note.mood) await db.notes.delete(note.date);
     else await db.notes.put(note);
   },
+  async toggleGroup(group: string, view: 'today' | 'habits') {
+    await db.transaction('rw', db.settings, async () => {
+      const settings = await db.settings.get('preferences') ?? defaults;
+      const field = view === 'today' ? 'collapsedTodayGroups' : 'collapsedHabitGroups';
+      const previous = settings[field] ?? [];
+      await db.settings.put({ ...settings, [field]: previous.includes(group) ? previous.filter(g => g !== group) : [...previous, group] });
+    });
+  },
   async saveSettings(settings: Settings) {
     await db.transaction('rw', [db.settings, db.badges], async () => {
       const theme = unlockedTheme(settings.theme, await db.badges.toArray());
@@ -258,6 +266,10 @@ export function parseBackup(raw: string): Snapshot {
   if (settings.id !== 'preferences' || !Number.isInteger(settings.rolloverHour) || settings.rolloverHour < 0 || settings.rolloverHour > 23 || !['mint', 'ember', 'mono', 'cyan', 'lime'].includes(settings.theme) || ![0, 1].includes(settings.weekStart)) throw new Error('Invalid backup settings.');
   if (settings.mode !== undefined && !['dark', 'light'].includes(settings.mode)) throw new Error('Invalid appearance mode.');
   if (settings.groups !== undefined && (!Array.isArray(settings.groups) || settings.groups.some(g => typeof g !== 'string' || !g.trim() || g.length > 40) || new Set(settings.groups.map(g => g.toLowerCase())).size !== settings.groups.length)) throw new Error('Invalid groups.');
+  for (const field of ['collapsedTodayGroups', 'collapsedHabitGroups'] as const) {
+    const values = settings[field];
+    if (values !== undefined && (!Array.isArray(values) || values.some(g => typeof g !== 'string' || g.length > 40) || new Set(values).size !== values.length)) throw new Error('Invalid collapsed groups.');
+  }
   if (settings.streakGrace !== undefined && ![0, 1].includes(settings.streakGrace)) throw new Error('Invalid streak setting.');
   if (settings.widgetMonths !== undefined && ![3, 6, 12].includes(settings.widgetMonths)) throw new Error('Invalid widget size.');
   if (settings.reminder !== undefined && (!settings.reminder || typeof settings.reminder.enabled !== 'boolean' || typeof settings.reminder.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(settings.reminder.time))) throw new Error('Invalid reminder setting.');

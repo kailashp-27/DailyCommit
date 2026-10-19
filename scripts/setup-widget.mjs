@@ -14,7 +14,7 @@ for (const folder of await readdir(join(base, 'res'))) {
   }
 }
 await mkdir(java, { recursive: true });
-for (const name of ['DailyCommitWidgetPlugin.java', 'DailyCommitWidgetProvider.java', 'WidgetActions.java']) await copyFile(join(root, 'native', 'android', name), join(java, name));
+for (const name of ['DailyCommitWidgetPlugin.java', 'DailyCommitWidgetProvider.java', 'WidgetActions.java', 'WidgetGridGeometry.java']) await copyFile(join(root, 'native', 'android', name), join(java, name));
 for (const [folder, name] of [['layout', 'dailycommit_widget.xml'], ['layout', 'widget_quick_row.xml'], ['drawable', 'widget_background.xml'], ['drawable', 'widget_background_light.xml'], ['drawable', 'dailycommit_foreground.xml'], ['drawable', 'dailycommit_monochrome.xml'], ['drawable', 'ic_notification.xml'], ['drawable', 'dailycommit_splash.xml'], ['values', 'styles.xml'], ['xml', 'dailycommit_widget_info.xml']]) {
   await mkdir(join(base, 'res', folder), { recursive: true });
   await copyFile(join(root, 'native', 'android', name), join(base, 'res', folder, name));

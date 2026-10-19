@@ -11,14 +11,14 @@ const badge = (id: string, name: string, rule: string, rarity: Rarity, category:
 export const badges: Badge[] = [
   ...themes.filter(t => t.days > 0).map(t => badge(t.badge, t.id === 'cyan' ? 'Cyan Branch' : 'Neon Release', `Complete a habit on ${t.days} different days. Unlocks the ${t.name} app color.`, t.id === 'cyan' ? 2 : 3, 'Colors', 'flower')),
   badge('first', 'First Commit', 'Complete your first habit.', 1, 'Starter', 'commit'),
-  badge('hello', 'Hello World', 'Finish every scheduled habit in a day.', 1, 'Starter', 'sun'),
+  badge('hello', 'Hello World', 'Finish every scheduled habit on your second day or later.', 1, 'Starter', 'sun'),
   badge('backup', 'Pushed to Remote', 'Export your first backup.', 1, 'Starter', 'upload'),
   badge('setup', 'Initial Setup', 'Create 3 habits.', 1, 'Starter', 'grid'),
   badge('sprint', 'Sprint', 'Reach a 7-day streak.', 1, 'Streaks', 'bolt'),
   badge('release', 'Release Candidate', 'Reach a 30-day streak.', 2, 'Streaks', 'flag'),
   badge('v1', 'v1.0', 'Reach a 100-day streak.', 3, 'Streaks', 'rocket'),
   badge('lts', 'LTS', 'Reach a 365-day streak.', 4, 'Streaks', 'crown'),
-  badge('clean', 'Clean Working Tree', 'Finish a perfect day. Your total keeps growing; this badge is awarded once.', 1, 'Perfect days', 'tree'),
+  badge('clean', 'Clean Working Tree', 'Complete all scheduled habits in a day, with at least 5 habits completed. Awarded once.', 1, 'Perfect days', 'tree'),
   badge('column', 'Full Column', 'Finish 7 perfect days, Monday through Sunday.', 2, 'Perfect days', 'column'),
   badge('wave', 'Heat Wave', 'Reach the top heat level for 14 consecutive days.', 3, 'Perfect days', 'wave'),
   badge('zero', 'Zero Conflicts', 'Complete every scheduled habit for a whole calendar month.', 4, 'Perfect days', 'shield'),
@@ -111,7 +111,7 @@ export function deriveBadges(data: Snapshot, through: string): BadgeUnlock[] {
     if (activity) { const year = date.slice(0, 4), count = (activeByYear.get(year) ?? 0) + 1; activeByYear.set(year, count); if (count >= 300) award('graph', date); }
     if (byDate.has(date) && i > 0) { const prev = summaries.get(days[i - 1])!; if (prev.total > prev.done) award('hotfix', date); }
     if (full) {
-      award('hello', date); award('clean', date);
+      if (date > first) award('hello', date); if (s.done >= 5) award('clean', date);
       if (lastActive && differenceInCalendarDays(d, parseISO(lastActive)) >= 8) award('rebase', date);
       if (d.getDay() === 5) award('friday', date);
       if (d.getDay() === 0 && perfect(days[i - 1])) award('weekend', date);

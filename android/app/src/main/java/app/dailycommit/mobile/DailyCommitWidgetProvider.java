@@ -12,6 +12,10 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
+import android.os.Build;
+import android.content.res.Configuration;
+import android.util.SizeF;
+import java.util.ArrayList;
 import android.view.View;
 import android.net.Uri;
 import android.widget.RemoteViews;
@@ -76,6 +80,22 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
         for (int i = 0; i < values.length(); i++) { JSONObject row = values.getJSONObject(i); rows.put(row.getString("date"), row); }
     }
     private static synchronized void update(Context context, AppWidgetManager manager, int id) {
+        Bundle options = manager.getAppWidgetOptions(id);
+        int screenPixels = context.getResources().getDisplayMetrics().widthPixels * context.getResources().getDisplayMetrics().heightPixels;
+        if (Build.VERSION.SDK_INT >= 31) {
+            ArrayList<SizeF> sizes = options.getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES);
+            if (sizes != null && !sizes.isEmpty() && sizes.size() <= 16) {
+                Map<SizeF, RemoteViews> layouts = new HashMap<>();
+                for (SizeF size : sizes) layouts.put(size, buildViews(context, id, Math.round(size.getWidth()), Math.round(size.getHeight()), Math.max(32768, screenPixels / sizes.size())));
+                manager.updateAppWidget(id, new RemoteViews(layouts)); return;
+            }
+        }
+        boolean landscape = context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        int width = options.getInt(landscape ? AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
+        int height = options.getInt(landscape ? AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT : AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 280);
+        manager.updateAppWidget(id, buildViews(context, id, width, height, Math.max(32768, screenPixels)));
+    }
+    private static RemoteViews buildViews(Context context, int id, int width, int height, int pixelBudget) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.dailycommit_widget);
         Intent launch = new Intent(context, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
@@ -102,9 +122,8 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
             } else if (data.has("today")) { views.setTextViewText(R.id.widget_count, "Open to refresh"); views.setTextViewText(R.id.widget_hint, "Refresh DailyCommit for this date"); }
             JSONArray tasks = WidgetActions.tasks(data, current, pending), unfinished = new JSONArray(), habits = data.optJSONArray("quickHabits");
             for (int i = 0; i < tasks.length(); i++) { JSONObject task = tasks.getJSONObject(i); if (task.optDouble("value", 0) < task.getDouble("target")) unfinished.put(task); }
-            int height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 280);
-            int visible = height >= 360 ? 3 : height >= 280 ? 2 : 1;
-            int pageCount = Math.max(1, (unfinished.length() + visible - 1) / visible);
+            int visible = height >= 440 ? 3 : height >= 340 ? 2 : height >= 260 ? 1 : 0;
+            int pageCount = Math.max(1, (unfinished.length() + Math.max(1, visible) - 1) / Math.max(1, visible));
             int page = context.getSharedPreferences(PREFS, 0).getInt("offset:" + id, 0) % pageCount;
             for (int i = page * visible; i < Math.min(unfinished.length(), (page + 1) * visible); i++) {
                 JSONObject task = unfinished.getJSONObject(i); String habitId = task.getString("habitId"), name = "Habit";
@@ -117,7 +136,7 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
                 row.setOnClickPendingIntent(R.id.widget_quick_button, PendingIntent.getBroadcast(context, 0, complete, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
                 views.addView(R.id.widget_quick_list, row);
             }
-            if (pageCount > 1) {
+            if (pageCount > 1 && visible > 0) {
                 views.setViewVisibility(R.id.widget_more, View.VISIBLE); views.setTextViewText(R.id.widget_more, "More habits · " + (page + 1) + "/" + pageCount);
                 views.setTextColor(R.id.widget_more, Color.parseColor(light ? "#5B564E" : "#A3AAB9"));
                 Intent pageIntent = new Intent(context, DailyCommitWidgetProvider.class).setAction(PAGE).setData(Uri.parse("dailycommit://page/" + id)).putExtra("widgetId", id);
@@ -125,28 +144,37 @@ public class DailyCommitWidgetProvider extends AppWidgetProvider {
             }
             if (WidgetActions.hasDay(data, current)) views.setTextViewText(R.id.widget_hint, unfinished.length() > 0 ? "Tap ✓ to complete · Tap graph to open" : tasks.length() > 0 ? "All scheduled habits done · Tap graph to open" : "No habits scheduled · Tap graph to open");
             else views.setTextViewText(R.id.widget_hint, "Open DailyCommit to refresh quick check-ins");
-            int months = data.optInt("months", 6), width = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
-            int count = months == 3 || width < 220 ? 91 : months == 12 && width >= 320 ? 364 : 182;
+            if (visible == 0 && unfinished.length() > 0) views.setTextViewText(R.id.widget_hint, "Resize taller for quick check-ins · Tap graph to open");
+            int months = data.optInt("months", 6);
+            int count = months == 3 ? 91 : months == 12 ? 364 : 182;
             JSONArray days = new JSONArray(); local.add(Calendar.DATE, -(count - 1));
             for (int i = 0; i < count; i++) { String date = formatter.format(local.getTime()); JSONObject row = rows.get(date); days.put(row != null ? row : new JSONObject().put("level", -1)); local.add(Calendar.DATE, 1); }
             JSONArray colors = data.optJSONArray("colors"); if (colors == null) colors = new JSONArray("[\"#1A1E28\",\"#4A2A17\",\"#8F4A1F\",\"#E27A2B\",\"#FFB65C\"]");
-            views.setImageViewBitmap(R.id.widget_heatmap, drawHeatmap(days, colors, light ? "#E7E2DA" : "#252B38", light ? "#CEC8BF" : "#363F50", count));
-            views.setContentDescription(R.id.widget_heatmap, count / 7 + " weeks of habit activity. Open DailyCommit for details.");
+            int shownRows = Math.min(visible, unfinished.length());
+            int graphHeight = Math.max(36, height - 88 - shownRows * 44 - (pageCount > 1 && visible > 0 ? 44 : 0));
+            views.setImageViewBitmap(R.id.widget_heatmap, drawHeatmap(days, colors, light ? "#E7E2DA" : "#252B38", light ? "#CEC8BF" : "#363F50", count, Math.max(36, width - 32) * 2, graphHeight * 2, pixelBudget));
+            views.setContentDescription(R.id.widget_heatmap, count / 7 + " weeks of habit activity in wrapped chronological strips. Open DailyCommit for details.");
         } catch (Exception ignored) { views.setTextViewText(R.id.widget_hint, "Open DailyCommit to refresh"); }
-        manager.updateAppWidget(id, views);
+        return views;
     }
-    private static Bitmap drawHeatmap(JSONArray days, JSONArray colors, String restColor, String gridColor, int count) throws Exception {
-        int cell = 22, gap = 6, rows = 7, columns = count / rows;
-        Bitmap bitmap = Bitmap.createBitmap(columns * (cell + gap), rows * (cell + gap), Bitmap.Config.ARGB_8888);
+    private static Bitmap drawHeatmap(JSONArray days, JSONArray colors, String restColor, String gridColor, int count, int width, int height, int pixelBudget) throws Exception {
+        width = Math.min(width, 1600); height = Math.min(height, 2000);
+        if ((long) width * height > pixelBudget) {
+            double scale = Math.sqrt((double) pixelBudget / ((long) width * height));
+            width = Math.max(1, (int) (width * scale)); height = Math.max(1, (int) (height * scale));
+        }
+        WidgetGridGeometry grid = new WidgetGridGeometry(count / 7, width, height);
+        float cell = grid.cell, radius = Math.max(1, cell * .18f);
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap); Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         for (int i = 0; i < count; i++) {
             int level = days.getJSONObject(i).optInt("level", -1);
             paint.setColor(level < 0 ? Color.parseColor(restColor) : Color.parseColor(colors.getString(Math.min(level, 4))));
-            float x = (i / rows) * (cell + gap), y = (i % rows) * (cell + gap);
-            canvas.drawRoundRect(x, y, x + cell, y + cell, 4, 4, paint);
+            float x = grid.x(i), y = grid.y(i);
+            canvas.drawRoundRect(x, y, x + cell, y + cell, radius, radius, paint);
             if (level <= 0) {
                 paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1.2f); paint.setColor(Color.parseColor(gridColor));
-                canvas.drawRoundRect(x + .6f, y + .6f, x + cell - .6f, y + cell - .6f, 4, 4, paint);
+                canvas.drawRoundRect(x + .6f, y + .6f, x + cell - .6f, y + cell - .6f, radius, radius, paint);
                 paint.setStyle(Paint.Style.FILL);
             }
         }

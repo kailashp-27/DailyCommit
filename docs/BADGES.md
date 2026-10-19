@@ -10,12 +10,13 @@ The catalog contains the original 40 badges plus two color rewards. Activity sho
 - Atomic reconciliation returns only newly inserted awards. Multiple tabs cannot award the same badge twice. Undo, archive, edit, and restoring an older backup never remove existing unlocks.
 - Backup v3 includes badge dates, undo events, special dates and the glow preference. Imports remain compatible with v1/v2. Importing an already earned badge does not repeat its animation.
 - One completed habit on one date is one volume check-in; numeric increments and repeated completion clicks do not multiply it. Partial numeric progress does not count as a completed check-in.
-- Clean Working Tree is awarded once. Its detail view shows the derived perfect-day total, which can change when history is edited.
+- Clean Working Tree is awarded once for a perfect day with at least five completed scheduled habits. Its detail view counts only qualifying perfect days; the derived count can change when history is edited. Existing unlocks remain permanent.
 - Pushed to Remote refers to downloading a local backup; no data is uploaded. The first exported backup includes that award.
 
 ## Calendar and timing
 
 - A perfect day has at least one scheduled habit, every one completed, and no skipped habits. Skipped/rest days can pause normal streaks, but do not create perfect days.
+- In local version 0.1.2, Hello World requires a perfect day after the first habit's creation date (day two or later). Its existing unlock date is preserved if it was earned under an earlier rule.
 - Streak awards follow the existing app streak rules, including the selected grace setting. Heat Wave uses 14 consecutive calendar days at heat level 4; Ember Mode counts 100 level-4 days in total. Level 4 means the heatmap's top intensity, including partial progress above 75%.
 - Full Column always uses Monday–Sunday. Zero Conflicts needs a full completed calendar month, with no incomplete scheduled days; days with no scheduled habits are neutral. A month cannot be earned before its last day. Monday Specialist is earned on the final Monday when all Mondays are perfect.
 - Rebase needs a previous check-in and at least seven whole days without any check-in before the perfect return day. Reflog requires a broken streak followed by a rebuild to the previous best.

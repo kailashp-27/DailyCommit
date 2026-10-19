@@ -1,3 +1,4 @@
+import HabitDetails from './HabitDetails';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { liveQuery } from 'dexie';
@@ -7,7 +8,7 @@ import { defaults, groupsFor, key, streaks, today, type Habit, type Vacation, ty
 import { parseBackup, repository, type GroupAction, type GroupUndo } from './repository';
 import { isAndroid, pinWidget, publishWidget, readDeviceData } from './widget';
 import { demoSnapshot } from './demo';
-import { allowReminders, checkWebReminders, syncReminders } from './reminders';
+import { allowReminders, checkWebReminders, syncReminders, watchReminderActions } from './reminders';
 import { downloadBlob } from './share';
 import ActivityPanel from './ActivityPanel';
 import DayCard from './DayCard';
@@ -34,6 +35,7 @@ export default function App() {
   const [demo, setDemo] = useState(false), [selected, setSelected] = useState<string | null>(null), [clock, setClock] = useState(Date.now());
   const [templatesOpen, setTemplatesOpen] = useState(false), [habitPreset, setHabitPreset] = useState<HabitValues | undefined>();
   const [newHabitGroup, setNewHabitGroup] = useState<string | undefined>();
+  const [detailHabit, setDetailHabit] = useState<Habit | null>(null);
   const [editor, setEditor] = useState<Habit | 'new' | null>(null), [archive, setArchive] = useState<Habit | null>(null), [importData, setImportData] = useState<Snapshot | null>(null);
   const [message, setMessage] = useState(''), [undo, setUndo] = useState<null | (() => Promise<void>)>(null), [busy, setBusy] = useState(false);
   const [messageVersion, setMessageVersion] = useState(0), [unlocks, setUnlocks] = useState<BadgeUnlock[]>([]);
@@ -42,6 +44,7 @@ export default function App() {
   const logoTaps = useRef(0);
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
   const refresh = useCallback(async () => { setData(await readDeviceData()); }, []);
+  useEffect(() => watchReminderActions(setMessage, refresh), [refresh]);
   useEffect(() => { void refresh().catch(() => setStorageError(true)); }, [refresh]);
   useEffect(() => {
     const subscription = liveQuery(() => repository.read()).subscribe({ next: next => { setData(next); setLoading(false); setStorageError(false); }, error: () => { setStorageError(true); setLoading(false); } });
@@ -136,12 +139,10 @@ export default function App() {
         {(view === 'today' || view === 'activity') && <>
           {view === 'today' && active.length > 0 && <div className="streak-strip"><span><Flame size={17}/><strong>{stats.current}</strong> day streak</span><span>Best {stats.best}</span>{stats.milestones.length > 0 && <span className="milestone" title={`${stats.milestones.at(-1)} day milestone`}><Award size={16}/>{stats.milestones.at(-1)}</span>}</div>}
           {view === 'activity' && <div ref={activityRef} className="day-anchor"><ActivityPanel data={shown} selected={selected ?? undefined} onSelect={selectDay} expanded onError={setMessage}/></div>}
-          <div ref={dailyRef} className="day-anchor">{(view === 'today' || selected !== null) && <DayCard key={date} data={shown} date={date} current={current} busy={busy} onDate={day => setSelected(view === 'activity' ? day : day === current ? null : day)} onAdd={() => openEditor('new')} onGroup={saveGroup} onState={saveState} onValue={saveValue} onStep={saveStep} onVacation={() => navigate('settings')} onNote={note => act(() => repository.saveNote(note), 'Note saved.')}/>}</div>
+          <div ref={dailyRef} className="day-anchor">{(view === 'today' || selected !== null) && <DayCard onDetails={setDetailHabit} onToggleGroup={group => void act(() => repository.toggleGroup(group, 'today'))} key={date} data={shown} date={date} current={current} busy={busy} onDate={day => setSelected(view === 'activity' ? day : day === current ? null : day)} onAdd={() => openEditor('new')} onGroup={saveGroup} onState={saveState} onValue={saveValue} onStep={saveStep} onVacation={() => navigate('settings')} onNote={note => act(() => repository.saveNote(note), 'Note saved.')}/>}</div>
           {view === 'activity' && <><BadgeShelf data={shown} current={current} onColors={() => setView('settings')} onDate={day => { setSelected(day); requestAnimationFrame(() => activityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}/><details className="card review-panel"><summary>Weekly review</summary><WeeklyReview data={shown} current={current}/></details></>}
         </>}
-        {view === 'habits' && <><HabitsList habits={active} groups={groupsFor(shown)} busy={busy} onAdd={group => openEditor('new', group)} onEdit={habit => openEditor(habit)} onArchive={setArchive} onReorder={reorder}/>
-          {shown.habits.some(h => h.archivedAt) && <section className="card manage-card archived-card"><details className="archived"><summary>Archived</summary>{shown.habits.filter(h => h.archivedAt).map(h => <div className="archived-row" key={h.id}><span>{h.name}</span><button className="text-button" disabled={busy} onClick={() => void act(() => repository.saveHabit({ ...h, id: crypto.randomUUID(), createdAt: current, archivedAt: null, order: data.habits.length, revisions: [{ from: current, schedule: h.schedule, measurement: h.measurement }] }), 'Habit resumed.')} aria-label={`Resume ${h.name}`}>Resume</button></div>)}<p className="field-hint">Resuming starts a new habit and preserves the archived history.</p></details></section>}
-        </>}
+        {view === 'habits' && <HabitsList habits={shown.habits} groups={groupsFor(shown)} collapsed={shown.settings.collapsedHabitGroups ?? []} busy={busy} onToggle={group => void act(() => repository.toggleGroup(group, 'habits'))} onAdd={group => openEditor('new', group)} onDetails={setDetailHabit} onArchive={setArchive} onReorder={reorder} onResume={h => void act(() => repository.saveHabit({ ...h, id: crypto.randomUUID(), createdAt: current, archivedAt: null, order: data.habits.length, revisions: [{ from: current, schedule: h.schedule, measurement: h.measurement }] }), 'Habit resumed.')}/>}
         {view === 'settings' && <SettingsPage settings={data.settings} badges={data.badges ?? []} busy={busy} onSave={saveSettings} onReminder={reminder} onExport={exportBackup} onImport={() => fileRef.current?.click()} onInstall={() => void installApp()} onMessage={setMessage}>
           <VacationManager data={data} current={current} busy={busy} onAdd={saveVacation} onEnd={endVacation}/>
           <SpecialDates settings={data.settings} busy={busy} onSave={saveSettings}/>
@@ -153,8 +154,9 @@ export default function App() {
     </div></main>
     <input hidden ref={fileRef} type="file" accept="application/json,.json" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; try { if (file.size > 10_000_000) throw new Error('Backup is too large (maximum 10 MB).'); setImportData(parseBackup(await file.text())); } catch (err) { setMessage(err instanceof Error ? err.message : 'Invalid backup.'); } }}/>
     {message && <div className="toast" role="status"><Check size={18}/><span>{message}</span>{undo && <button disabled={busy} onClick={() => void act(undo)}><Undo2 size={16}/>Undo</button>}<button className="icon-button" aria-label="Dismiss message" onClick={() => { setMessage(''); setUndo(null); }}><X size={16}/></button></div>}
-    {!editor && !templatesOpen && !archive && !importData && !demo && unlocks[0] && <BadgeCelebration key={unlocks[0].id} unlock={unlocks[0]} remaining={unlocks.length} onClose={() => setUnlocks(queue => queue.slice(1))}/>}
+    {!editor && !detailHabit && !templatesOpen && !archive && !importData && !demo && unlocks[0] && <BadgeCelebration key={unlocks[0].id} unlock={unlocks[0]} remaining={unlocks.length} onClose={() => setUnlocks(queue => queue.slice(1))}/>}
     {templatesOpen && <HabitTemplates onSelect={useTemplate} onClose={() => setTemplatesOpen(false)}/>}
+    {detailHabit && <HabitDetails habit={shown.habits.find(h => h.id === detailHabit.id) ?? detailHabit} data={shown} current={current} onClose={() => setDetailHabit(null)} onEdit={() => { openEditor(shown.habits.find(h => h.id === detailHabit.id) ?? detailHabit); setDetailHabit(null); }} onDay={day => { setView('activity'); setSelected(day); setDetailHabit(null); window.scrollTo({ top: 0 }); }}/>}
     {editor && <HabitEditor habit={editor} groups={groupsFor(shown)} initialGroup={newHabitGroup} initialValues={habitPreset} onClose={() => setEditor(null)} onSave={saveHabit}/>}
     {archive && <Modal title="Archive habit?" onClose={() => setArchive(null)}><p>{archive.name} will leave your active list. Its history stays.</p><div className="modal-actions"><button className="secondary" onClick={() => setArchive(null)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void act(() => repository.saveHabit({ ...archive, archivedAt: current }), 'Habit archived.', () => repository.saveHabit(archive)).then(saved => { if (saved) setArchive(null); })}>Archive</button></div></Modal>}
     {importData && <Modal title="Restore backup?" onClose={() => setImportData(null)}><p>Replace local data with {importData.habits.length} habits, {importData.completions.length} check-ins and {importData.notes?.length ?? 0} notes. Earned badges are kept. Export first to keep your current data.</p><div className="modal-actions"><button className="secondary" onClick={exportBackup}>Export current</button><button className="secondary" onClick={() => setImportData(null)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void act(() => repository.restore(importData), 'Backup restored.').then(saved => { if (saved) setImportData(null); })}>Replace & restore</button></div></Modal>}

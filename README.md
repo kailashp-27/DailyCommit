@@ -4,6 +4,8 @@ Small habits. A year of progress. A local-first React PWA with an Android compan
 
 [Live PWA](https://dailycommit-kailashp27.netlify.app/) · [Download testing APK](https://dailycommit-kailashp27.netlify.app/downloads/DailyCommit-0.1.1-debug.apk) · [Deployment notes](docs/DEPLOYMENT.md)
 
+Local work is now version 0.1.2: habit details, reminder actions, collapsible groups, search/filter, revised beginner badge rules and responsive full-range widget grids. See [changes and verification](docs/VERSION-0.1.2.md). These changes have not been pushed or deployed; the links above still serve the previous release.
+
 ![DailyCommit mobile layout in dark Ember](docs/preview-mobile.png)
 
 ## Run

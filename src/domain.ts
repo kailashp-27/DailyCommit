@@ -13,7 +13,7 @@ export type Completion = { id: string; habitId: string; date: Day; value: number
 export type Skip = { id: string; habitId: string; date: Day };
 export type Mood = 'great' | 'good' | 'okay' | 'low' | 'rough';
 export type DayNote = { date: Day; text: string; mood: Mood | null; updatedAt: string };
-export type Settings = { id: 'preferences'; vacations?: Vacation[]; specialDates?: string[]; badgeGlow?: boolean; groups?: string[]; rolloverHour: number; theme: AppTheme | 'mint' | 'mono'; mode?: 'dark' | 'light'; weekStart: 0 | 1; streakGrace?: 0 | 1; widgetMonths?: 3 | 6 | 12; reminder?: HabitReminder };
+export type Settings = { id: 'preferences'; collapsedTodayGroups?: string[]; collapsedHabitGroups?: string[]; vacations?: Vacation[]; specialDates?: string[]; badgeGlow?: boolean; groups?: string[]; rolloverHour: number; theme: AppTheme | 'mint' | 'mono'; mode?: 'dark' | 'light'; weekStart: 0 | 1; streakGrace?: 0 | 1; widgetMonths?: 3 | 6 | 12; reminder?: HabitReminder };
 export type Snapshot = { habits: Habit[]; completions: Completion[]; skips: Skip[]; settings: Settings; notes?: DayNote[]; badges?: BadgeUnlock[]; badgeEvents?: BadgeEvent[] };
 export const defaultGroups = ['Morning', 'Fitness', 'Study', 'Evening'];
 export const groupsFor = (data: Snapshot) => [...new Set([...(data.settings.groups ?? defaultGroups), ...data.habits.flatMap(h => h.group ? [h.group] : [])])];
