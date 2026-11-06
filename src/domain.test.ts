@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateRange, daySummary, defaults, intensity, isScheduled, today, type Habit, type Snapshot } from './domain';
+import { dateRange, daySummary, defaults, greetingFor, intensity, isScheduled, today, weeklyReview, type Habit, type Snapshot } from './domain';
 const habit = (changes: Partial<Habit> = {}): Habit => ({ id:'h1', name:'Read', icon:'book', color:'#b1ef79', schedule:{kind:'daily'}, createdAt:'2026-01-01', archivedAt:null, order:0, revisions:[], ...changes });
 const snapshot = (habits: Habit[] = [habit()]): Snapshot => ({habits,completions:[],skips:[],settings:defaults});
 describe('local days', () => {
@@ -14,4 +14,35 @@ describe('schedule and ratio', () => {
   it('preserves historical schedules after an edit', () => { const h=habit({schedule:{kind:'weekdays',days:[1]},revisions:[{from:'2026-01-01',schedule:{kind:'daily'}},{from:'2026-10-10',schedule:{kind:'weekdays',days:[1]}}]}),d=snapshot([h]); expect(isScheduled(h,'2026-10-09',d)).toBe(true); expect(isScheduled(h,'2026-10-10',d)).toBe(false); });
   it('removes skips from the denominator and ignores unrelated completions', () => { const d=snapshot([habit(),habit({id:'h2'}),habit({id:'future',createdAt:'2026-11-01'})]); d.completions=[{id:'h1:2026-10-10',habitId:'h1',date:'2026-10-10',value:1,completedAt:new Date().toISOString()}]; d.skips=[{id:'h2:2026-10-10',habitId:'h2',date:'2026-10-10'}]; expect(daySummary('2026-10-10',d)).toMatchObject({done:1,total:1,ratio:1}); });
   it('distinguishes a missed day from rest', () => { expect(daySummary('2026-10-10',snapshot()).ratio).toBe(0); expect(daySummary('2026-10-10',snapshot([])).ratio).toBe(null); expect(intensity(null)).toBe(-1); expect(intensity(0)).toBe(0); expect(intensity(.25)).toBe(1); expect(intensity(1)).toBe(4); });
+});
+describe('greetingFor', () => {
+  it('greets appropriately by time of day', () => {
+    expect(greetingFor('Kailash', new Date(2026, 10, 5, 9, 0))).toBe('Good morning, Kailash');
+    expect(greetingFor('Kailash', new Date(2026, 10, 5, 14, 0))).toBe('Good afternoon, Kailash');
+    expect(greetingFor('Kailash', new Date(2026, 10, 5, 20, 0))).toBe('Good evening, Kailash');
+  });
+  it('celebrates birthday', () => {
+    expect(greetingFor('Kailash', new Date(2026, 9, 24, 10, 0), '2000-10-24')).toBe('Happy Birthday, Kailash! 🎂');
+    expect(greetingFor(undefined, new Date(2026, 9, 24, 10, 0), '2000-10-24')).toBe('Happy Birthday! 🎂');
+  });
+  it('works when name is undefined', () => {
+    expect(greetingFor(undefined, new Date(2026, 10, 5, 9, 0))).toBe('Good morning');
+  });
+});
+
+describe('weeklyReview', () => {
+  it('computes totalDone, totalDue, percent and daily breakdown', () => {
+    const h = habit();
+    const d = snapshot([h]);
+    d.completions = [
+      { id: 'h1:2026-10-05', habitId: 'h1', date: '2026-10-05', value: 1, completedAt: '2026-10-05T10:00:00Z' },
+      { id: 'h1:2026-10-06', habitId: 'h1', date: '2026-10-06', value: 1, completedAt: '2026-10-06T10:00:00Z' },
+    ];
+    const review = weeklyReview(d, '2026-10-05', '2026-10-11');
+    expect(review.totalDone).toBe(2);
+    expect(review.totalDue).toBe(7);
+    expect(review.percent).toBeCloseTo((2 / 7) * 100);
+    expect(review.days).toHaveLength(7);
+    expect(review.days[0]).toMatchObject({ date: '2026-10-05', done: 1, total: 1 });
+  });
 });

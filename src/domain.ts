@@ -1,23 +1,33 @@
 import { themeFor, type AppTheme } from './themes';
 import type { BadgeUnlock, BadgeEvent } from './badges';
-import { addDays, format, parseISO, startOfWeek, subDays } from 'date-fns';
+import { addDays, endOfMonth, format, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 
 export type Day = string;
-export type Schedule = { kind: 'daily' } | { kind: 'weekdays'; days: number[] } | { kind: 'weekly'; target: number };
+export type Schedule = { kind: 'daily' } | { kind: 'weekdays'; days: number[] } | { kind: 'weekly'; target: number; dueDay?: number } | { kind: 'monthly'; target: number; dueDayOfMonth?: number };
 export type ChecklistStep = { id: string; text: string };
 export type Measurement = { kind: 'binary' } | { kind: 'numeric'; target: number; unit: string } | { kind: 'checklist'; items: ChecklistStep[] };
 export type HabitReminder = { enabled: boolean; time: string };
 export type Vacation = { id: string; from: Day; to: Day; habitIds: string[] | null };
-export type Habit = { id: string; name: string; group?: string; icon: string; color: string; schedule: Schedule; measurement?: Measurement; reminder?: HabitReminder; createdAt: Day; archivedAt: Day | null; order: number; revisions: { from: Day; schedule: Schedule; measurement?: Measurement }[] };
+export type Habit = { id: string; name: string; group?: string; icon: string; color: string; schedule: Schedule; measurement?: Measurement; reminder?: HabitReminder; createdAt: Day; archivedAt: Day | null; goalDate?: Day | null; order: number; revisions: { from: Day; schedule: Schedule; measurement?: Measurement }[] };
 export type Completion = { id: string; habitId: string; date: Day; value: number; checked?: string[]; completedAt: string; source?: 'widget' };
 export type Skip = { id: string; habitId: string; date: Day };
 export type Mood = 'great' | 'good' | 'okay' | 'low' | 'rough';
 export type DayNote = { date: Day; text: string; mood: Mood | null; updatedAt: string };
-export type Settings = { id: 'preferences'; collapsedTodayGroups?: string[]; collapsedHabitGroups?: string[]; vacations?: Vacation[]; specialDates?: string[]; badgeGlow?: boolean; groups?: string[]; rolloverHour: number; theme: AppTheme | 'mint' | 'mono'; mode?: 'dark' | 'light'; weekStart: 0 | 1; streakGrace?: 0 | 1; widgetMonths?: 3 | 6 | 12; reminder?: HabitReminder };
+export type TodayViewMode = 'minimal' | 'swipe' | 'grouped';
+export type Settings = { id: 'preferences'; userName?: string; birthday?: string; onboarded?: boolean; todayViewMode?: TodayViewMode; collapsedTodayGroups?: string[]; collapsedHabitGroups?: string[]; vacations?: Vacation[]; specialDates?: string[]; badgeGlow?: boolean; groups?: string[]; rolloverHour: number; theme: AppTheme | 'mint' | 'mono'; mode?: 'dark' | 'light'; weekStart: 0 | 1; streakGrace?: 0 | 1; widgetMonths?: 3 | 6 | 12; widgetType?: 'heatmap' | 'hybrid'; reminder?: HabitReminder; haptics?: boolean };
 export type Snapshot = { habits: Habit[]; completions: Completion[]; skips: Skip[]; settings: Settings; notes?: DayNote[]; badges?: BadgeUnlock[]; badgeEvents?: BadgeEvent[] };
 export const defaultGroups = ['Morning', 'Fitness', 'Study', 'Evening'];
 export const groupsFor = (data: Snapshot) => [...new Set([...(data.settings.groups ?? defaultGroups), ...data.habits.flatMap(h => h.group ? [h.group] : [])])];
-export const defaults: Settings = { id: 'preferences', groups: defaultGroups, rolloverHour: 0, theme: 'ember', mode: 'dark', weekStart: 1 };
+export const defaults: Settings = { id: 'preferences', groups: defaultGroups, rolloverHour: 0, theme: 'ember', mode: 'dark', weekStart: 1, todayViewMode: 'minimal', widgetMonths: 3, widgetType: 'hybrid', haptics: true };
+export function greetingFor(name?: string, now = new Date(), birthday?: string): string {
+  const currentMonthDay = format(now, 'MM-dd');
+  const isBirthday = birthday && (birthday.endsWith(currentMonthDay) || birthday === currentMonthDay);
+  if (isBirthday && name) return `Happy Birthday, ${name}! 🎂`;
+  if (isBirthday) return 'Happy Birthday! 🎂';
+  const hour = now.getHours();
+  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return name ? `${timeGreeting}, ${name}` : timeGreeting;
+}
 export const key = (habitId: string, date: Day) => `${habitId}:${date}`;
 export const dayString = (date: Date) => format(date, 'yyyy-MM-dd');
 export function today(rolloverHour = 0, now = new Date()): Day {
@@ -57,20 +67,85 @@ export const targetFor = (measure: Measurement) => measure.kind === 'numeric' ? 
 export const isOnVacation = (habitId: string, date: Day, settings: Settings) => (settings.vacations ?? []).some(v => date >= v.from && date <= v.to && (v.habitIds === null || v.habitIds.includes(habitId)));
 export function isScheduled(habit: Habit, date: Day, data: Snapshot): boolean {
   if (date < habit.createdAt || (habit.archivedAt && date >= habit.archivedAt)) return false;
+  if (habit.goalDate && date > habit.goalDate) return false;
   if (isOnVacation(habit.id, date, data.settings) && !facts(data).byHabit.get(habit.id)?.has(date)) return false;
   const schedule = scheduleOn(habit, date);
   if (schedule.kind === 'daily') return true;
   if (schedule.kind === 'weekdays') return schedule.days.includes(parseISO(date).getDay());
   const rows = facts(data).byHabit.get(habit.id);
   if (rows?.has(date)) return true;
+  if (schedule.kind === 'weekly') {
+    if (schedule.dueDay !== undefined && parseISO(date).getDay() !== schedule.dueDay) return false;
+    const start = dayString(startOfWeek(parseISO(date), { weekStartsOn: data.settings.weekStart }));
+    const done = dateRange(start, dayString(subDays(parseISO(date), 1))).filter(day => {
+      const row = rows?.get(day); return row !== undefined && progressFor(habit, day, row.value) >= 1;
+    }).length;
+    return done < schedule.target;
+  }
+  if (schedule.kind === 'monthly') {
+    const parsed = parseISO(date);
+    if (schedule.dueDayOfMonth !== undefined && parsed.getDate() !== schedule.dueDayOfMonth) return false;
+    const start = dayString(startOfMonth(parsed));
+    const done = dateRange(start, dayString(subDays(parsed, 1))).filter(day => {
+      const row = rows?.get(day); return row !== undefined && progressFor(habit, day, row.value) >= 1;
+    }).length;
+    return done < schedule.target;
+  }
+  return true;
+}
+export function weeklyHabitStatus(habit: Habit, date: Day, data: Snapshot) {
+  const schedule = scheduleOn(habit, date);
+  if (schedule.kind !== 'weekly') return null;
   const start = dayString(startOfWeek(parseISO(date), { weekStartsOn: data.settings.weekStart }));
-  const done = dateRange(start, dayString(subDays(parseISO(date), 1))).filter(day => {
+  const end = dayString(addDays(parseISO(start), 6));
+  const rows = facts(data).byHabit.get(habit.id);
+  const done = dateRange(start, end).filter(day => {
     const row = rows?.get(day); return row !== undefined && progressFor(habit, day, row.value) >= 1;
   }).length;
-  return done < schedule.target;
+  return { done, target: schedule.target, reached: done >= schedule.target, start, end };
+}
+export function monthlyHabitStatus(habit: Habit, date: Day, data: Snapshot) {
+  const schedule = scheduleOn(habit, date);
+  if (schedule.kind !== 'monthly') return null;
+  const parsed = parseISO(date);
+  const start = dayString(startOfMonth(parsed));
+  const end = dayString(endOfMonth(parsed));
+  const rows = facts(data).byHabit.get(habit.id);
+  const done = dateRange(start, end).filter(day => {
+    const row = rows?.get(day); return row !== undefined && progressFor(habit, day, row.value) >= 1;
+  }).length;
+  return { done, target: schedule.target, reached: done >= schedule.target, start, end };
 }
 export function daySummary(date: Day, data: Snapshot) {
-  const eligible = data.habits.filter(h => isScheduled(h, date, data)).sort((a, b) => a.order - b.order);
+  const eligible = data.habits.filter(h => {
+    if (!isScheduled(h, date, data)) return false;
+    const schedule = scheduleOn(h, date);
+    if (schedule.kind === 'weekly') {
+      const rows = facts(data).byHabit.get(h.id);
+      if (rows?.has(date)) return true;
+      const start = dayString(startOfWeek(parseISO(date), { weekStartsOn: data.settings.weekStart }));
+      const end = dayString(addDays(parseISO(start), 6));
+      const doneInWeek = dateRange(start, end).filter(day => {
+        const row = rows?.get(day); return row !== undefined && progressFor(h, day, row.value) >= 1;
+      }).length;
+      if (doneInWeek >= schedule.target) return false;
+      // If flexible weekly and not the end of the week, non-completion days are not missed
+      if (schedule.dueDay === undefined && date !== end) return false;
+    }
+    if (schedule.kind === 'monthly') {
+      const rows = facts(data).byHabit.get(h.id);
+      if (rows?.has(date)) return true;
+      const parsed = parseISO(date);
+      const start = dayString(startOfMonth(parsed));
+      const end = dayString(endOfMonth(parsed));
+      const doneInMonth = dateRange(start, end).filter(day => {
+        const row = rows?.get(day); return row !== undefined && progressFor(h, day, row.value) >= 1;
+      }).length;
+      if (doneInMonth >= schedule.target) return false;
+      if (schedule.dueDayOfMonth === undefined && date !== end) return false;
+    }
+    return true;
+  }).sort((a, b) => a.order - b.order);
   const index = facts(data);
   const skipped = new Set((index.skipsByDate.get(date) ?? []).map(s => s.habitId));
   const values = new Map((index.byDate.get(date) ?? []).map(c => [c.habitId, c.value]));
@@ -92,6 +167,8 @@ export function weeklyReview(data: Snapshot, from: Day, through: Day) {
     const total = summaries.reduce((n, day) => n + day.total, 0);
     return total ? summaries.reduce((n, day) => n + day.done, 0) / total * 100 : null;
   };
+  const totalDone = days.reduce((n, day) => n + day.done, 0);
+  const totalDue = days.reduce((n, day) => n + day.total, 0);
   const percent = rate(days), previousPercent = rate(previous);
   const strongest = days.filter(day => day.total > 0).sort((a, b) => b.done / b.total - a.done / a.total)[0];
   const missed = data.habits.map(habit => {
@@ -99,7 +176,7 @@ export function weeklyReview(data: Snapshot, from: Day, through: Day) {
     const count = due.filter(day => !day.completed.has(habit.id)).length;
     return { habit, count, due: due.length, rate: due.length ? count / due.length : 0 };
   }).filter(habit => habit.count > 0).sort((a, b) => b.rate - a.rate || b.count - a.count || a.habit.order - b.habit.order)[0];
-  return { percent, previousPercent, delta: percent !== null && previousPercent !== null ? percent - previousPercent : null, strongest, missed };
+  return { percent, previousPercent, delta: percent !== null && previousPercent !== null ? percent - previousPercent : null, strongest, missed, totalDone, totalDue, days };
 }
 export const emberPalette = {
   dark: ['#1A1E28', '#4A2A17', '#8F4A1F', '#E27A2B', '#FFB65C'],

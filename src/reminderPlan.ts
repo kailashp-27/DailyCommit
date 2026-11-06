@@ -1,5 +1,5 @@
 import { addDays, parseISO } from 'date-fns';
-import { dateRange, dayString, daySummary, today, type Snapshot } from './domain';
+import { dateRange, dayString, daySummary, isScheduled, today, type Snapshot } from './domain';
 
 export type PlannedReminder = { key: string; at: Date; title: string; body: string; habitIds: string[] };
 export function reminderPlan(data: Snapshot, after = new Date(), days = 30): PlannedReminder[] {
@@ -7,7 +7,7 @@ export function reminderPlan(data: Snapshot, after = new Date(), days = 30): Pla
   const planned: PlannedReminder[] = [];
   for (const date of dateRange(from, to)) {
     const summary = daySummary(date, data);
-    const due = summary.eligible.filter(h => !summary.skipped.has(h.id) && !summary.completed.has(h.id));
+    const due = data.habits.filter(h => isScheduled(h, date, data) && !summary.skipped.has(h.id) && !summary.completed.has(h.id));
     if (!due.length) continue;
     const slots = new Map<string, { names: string[]; ids: string[]; global: boolean }>();
     const add = (time: string, names: string[], ids: string[], global: boolean) => {

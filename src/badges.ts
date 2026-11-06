@@ -116,7 +116,7 @@ export function deriveBadges(data: Snapshot, through: string): BadgeUnlock[] {
       if (d.getDay() === 5) award('friday', date);
       if (d.getDay() === 0 && perfect(days[i - 1])) award('weekend', date);
       if (date.endsWith('-03-14')) award('pi', date);
-      if (data.settings.specialDates?.includes(date)) award('special', date);
+      if (data.settings.specialDates?.includes(date) || (data.settings.birthday && date.endsWith(data.settings.birthday.slice(4)))) award('special', date);
       if (d.getDay() === 0 && dateRange(dayString(startOfWeek(d, { weekStartsOn: 1 })), date).every(perfect)) award('column', date);
     }
     if (activity) lastActive = date;

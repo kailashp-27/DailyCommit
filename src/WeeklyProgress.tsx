@@ -1,39 +1,205 @@
 import { useState } from 'react';
-import { addDays, format, parseISO, startOfWeek } from 'date-fns';
+import { addDays, addMonths, endOfMonth, format, parseISO, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { dayString, daySummary, type Snapshot } from './domain';
 
-export default function WeeklyProgress({ data, current, selected, onSelect }: { data: Snapshot; current: string; selected?: string; onSelect: (date: string) => void }) {
-  const [anchor, setAnchor] = useState(current), [metric, setMetric] = useState<'count' | 'rate'>('count');
-  const start = startOfWeek(parseISO(anchor), { weekStartsOn: data.settings.weekStart });
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const date = dayString(addDays(start, i)), summary = daySummary(date, data);
+export default function WeeklyProgress({ data, current, selected, onSelect }: { data: Snapshot; current: string; selected?: string; onSelect?: (date: string) => void }) {
+  const [timeframe, setTimeframe] = useState<'week' | 'month'>('week');
+  const [anchor, setAnchor] = useState(current);
+
+  // Week calculation
+  const weekStart = startOfWeek(parseISO(anchor), { weekStartsOn: data.settings.weekStart });
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const date = dayString(addDays(weekStart, i));
+    const summary = daySummary(date, data);
     return { date, ...summary, future: date > current };
   });
-  const elapsed = days.filter(day => !day.future), done = elapsed.reduce((sum, day) => sum + day.done, 0), total = elapsed.reduce((sum, day) => sum + day.total, 0);
-  const maximum = metric === 'rate' ? 100 : Math.max(1, ...elapsed.map(day => day.total));
-  const ticks = [...new Set([0, Math.ceil(maximum / 2), maximum])];
-  const points = days.map((day, i) => ({ ...day, x: 34 + i * 44, y: 130 - (metric === 'count' ? day.done : day.total ? day.done / day.total * 100 : 0) / maximum * 102 }));
+  const weekElapsed = weekDays.filter(day => !day.future);
+  const weekDone = weekElapsed.reduce((sum, day) => sum + day.done, 0);
+  const weekTotal = weekElapsed.reduce((sum, day) => sum + day.total, 0);
+  const nextWeek = dayString(addDays(weekStart, 7));
+
+  // Month calculation
+  const monthStart = startOfMonth(parseISO(anchor));
+  const monthEnd = endOfMonth(monthStart);
+  const totalDaysInMonth = monthEnd.getDate();
+  const monthDays = Array.from({ length: totalDaysInMonth }, (_, i) => {
+    const date = dayString(addDays(monthStart, i));
+    const summary = daySummary(date, data);
+    return { date, ...summary, future: date > current };
+  });
+  const monthElapsed = monthDays.filter(day => !day.future);
+  const monthDone = monthElapsed.reduce((sum, day) => sum + day.done, 0);
+  const monthTotal = monthElapsed.reduce((sum, day) => sum + day.total, 0);
+  const nextMonth = dayString(addMonths(monthStart, 1));
+
+  // Find all Sundays in the month for graph X-axis labels
+  const sundays = monthDays
+    .map((day, index) => ({ ...day, index, dayNum: parseISO(day.date).getDate() }))
+    .filter(day => parseISO(day.date).getDay() === 0);
+
+  const isWeek = timeframe === 'week';
+  const days = isWeek ? weekDays : monthDays;
+  const done = isWeek ? weekDone : monthDone;
+  const total = isWeek ? weekTotal : monthTotal;
+
+  const maximum = 100;
+  const ticks = [0, 50, 100];
+
+  const points = days.map((day, i) => {
+    const x = isWeek ? 34 + i * 44 : 24 + (i / Math.max(1, days.length - 1)) * 274;
+    const y = 130 - (day.total ? (day.done / day.total) * 100 : 0) / maximum * 102;
+    return { ...day, x, y };
+  });
+
   const segments: string[] = [];
   let segment = '';
   for (const point of points) {
-    if (point.future || !point.total) { if (segment) segments.push(segment); segment = ''; continue; }
+    if (point.future) {
+      if (segment) segments.push(segment);
+      segment = '';
+      continue;
+    }
     segment += `${segment ? ' L' : 'M'}${point.x},${point.y}`;
   }
   if (segment) segments.push(segment);
-  const next = dayString(addDays(start, 7));
-  return <div className="weekly-progress">
-    <div className="card-heading"><h2>Weekly progress</h2><span className="weekly-summary">{done}/{total} done{total > 0 && ` · ${Math.round(done / total * 100)}%`}</span></div>
-    <div className="segmented" aria-label="Weekly progress metric"><button className={metric === 'count' ? 'active' : ''} aria-pressed={metric === 'count'} onClick={() => setMetric('count')}>Completed habits</button><button className={metric === 'rate' ? 'active' : ''} aria-pressed={metric === 'rate'} onClick={() => setMetric('rate')}>Completion %</button></div>
-    <div className="period-controls"><button className="icon-button" aria-label="Previous week" onClick={() => setAnchor(dayString(addDays(start, -7)))}><ArrowLeft size={16}/></button><span>{format(start, 'd MMM')} – {format(addDays(start, 6), 'd MMM yyyy')}</span><button className="icon-button" aria-label="Next week" disabled={next > current} onClick={() => setAnchor(next)}><ArrowRight size={16}/></button></div>
-    <svg className="weekly-chart" viewBox="0 0 322 146" role="img" aria-label={`Weekly ${metric === 'count' ? 'completed habits' : 'completion percentage'} line graph`}>
-      <desc>{days.map(day => `${format(parseISO(day.date), 'EEEE')}: ${day.future ? 'upcoming' : day.total ? `${day.done} of ${day.total} habits completed` : 'rest day'}`).join('. ')}</desc>
-      {ticks.map(tick => { const y = 130 - tick / maximum * 102; return <g key={tick}><line x1="34" x2="298" y1={y} y2={y}/><text x="25" y={y + 4} textAnchor="end">{tick}{metric === 'rate' ? '%' : ''}</text></g>; })}
-      {segments.map((path, i) => <path className="weekly-line" key={i} d={path}/>)}
-      {points.filter(point => !point.future && point.total > 0).map(point => <circle key={point.date} cx={point.x} cy={point.y} r={selected === point.date ? 5 : 3.5}/>)}
-    </svg>
-    <div className="weekly-days">{days.map(day => <button key={day.date} disabled={day.future} aria-pressed={selected === day.date} aria-label={`${format(parseISO(day.date), 'EEEE, d MMM')}: ${day.future ? 'upcoming' : day.total ? `${day.done} of ${day.total} completed` : 'rest day'}`} onClick={() => onSelect(day.date)}><span>{format(parseISO(day.date), 'EEE')}</span><strong>{day.future ? '—' : !day.total ? 'Rest' : metric === 'count' ? day.done : `${Math.round(day.done / day.total * 100)}%`}</strong></button>)}</div>
-    <p className="weekly-hint">{total ? 'Tap a day to review. Future days stay blank.' : 'No habits scheduled for this week.'}</p>
 
-  </div>;
+  return (
+    <div className="weekly-progress">
+      <div className="card-heading">
+        <h2>{isWeek ? 'Weekly progress' : 'Monthly progress'}</h2>
+        <span className="weekly-summary">
+          {done}/{total} done{total > 0 && ` · ${Math.round((done / total) * 100)}%`}
+        </span>
+      </div>
+
+      <div className="segmented" aria-label="Progress view mode" style={{ marginBottom: '8px' }}>
+        <button
+          className={timeframe === 'week' ? 'active' : ''}
+          aria-pressed={timeframe === 'week'}
+          onClick={() => setTimeframe('week')}
+        >
+          Weekly view
+        </button>
+        <button
+          className={timeframe === 'month' ? 'active' : ''}
+          aria-pressed={timeframe === 'month'}
+          onClick={() => setTimeframe('month')}
+        >
+          Monthly view
+        </button>
+      </div>
+
+      <div className="period-controls">
+        <button
+          className="icon-button"
+          aria-label={isWeek ? 'Previous week' : 'Previous month'}
+          onClick={() => setAnchor(isWeek ? dayString(addDays(weekStart, -7)) : dayString(subMonths(monthStart, 1)))}
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <span>
+          {isWeek
+            ? `${format(weekStart, 'd MMM')} – ${format(addDays(weekStart, 6), 'd MMM yyyy')}`
+            : format(monthStart, 'MMMM yyyy')}
+        </span>
+        <button
+          className="icon-button"
+          aria-label={isWeek ? 'Next week' : 'Next month'}
+          disabled={(isWeek ? nextWeek : nextMonth) > current}
+          onClick={() => setAnchor(isWeek ? nextWeek : nextMonth)}
+        >
+          <ArrowRight size={16} />
+        </button>
+      </div>
+
+      <svg
+        className="weekly-chart"
+        viewBox={`0 0 322 ${isWeek ? 146 : 154}`}
+        role="img"
+        aria-label={`${isWeek ? 'Weekly' : 'Monthly'} completion percentage line graph`}
+      >
+        <desc>
+          {days
+            .map(
+              day =>
+                `${format(parseISO(day.date), isWeek ? 'EEEE' : 'MMM d')}: ${
+                  day.future ? 'upcoming' : day.total ? `${Math.round((day.done / day.total) * 100)}% completed` : 'rest day'
+                }`
+            )
+            .join('. ')}
+        </desc>
+        {ticks.map(tick => {
+          const y = 130 - (tick / maximum) * 102;
+          return (
+            <g key={tick}>
+              <line x1="24" x2="298" y1={y} y2={y} />
+              <text x="20" y={y + 4} textAnchor="end">
+                {tick}%
+              </text>
+            </g>
+          );
+        })}
+        {/* Sunday markers on X-axis in monthly progress */}
+        {!isWeek &&
+          sundays.map(s => {
+            const x = 24 + (s.index / Math.max(1, monthDays.length - 1)) * 274;
+            return (
+              <g key={s.date}>
+                <line x1={x} x2={x} y1="128" y2="133" stroke="var(--border)" strokeWidth="1" />
+                <text x={x} y="146" textAnchor="middle" fill="var(--text-2)" fontSize="9">
+                  Sun {s.dayNum}
+                </text>
+              </g>
+            );
+          })}
+        {segments.map((path, i) => (
+          <path className="weekly-line" key={i} d={path} />
+        ))}
+        {points
+          .filter(point => !point.future && (point.total > 0 || isWeek))
+          .map(point => (
+            <circle
+              key={point.date}
+              cx={point.x}
+              cy={point.y}
+              r={isWeek ? (selected === point.date ? 5 : 3.5) : 2}
+            />
+          ))}
+      </svg>
+
+      {isWeek && (
+        <div className="weekly-days">
+          {days.map(day => (
+            <button
+              key={day.date}
+              disabled={day.future}
+              aria-pressed={selected === day.date}
+              aria-label={`${format(parseISO(day.date), 'EEEE, d MMM')}: ${
+                day.future ? 'upcoming' : day.total ? `${day.done} of ${day.total} completed` : 'rest day'
+              }`}
+              onClick={() => onSelect?.(day.date)}
+            >
+              <span>{format(parseISO(day.date), 'EEE')}</span>
+              <strong>
+                {day.future
+                  ? '—'
+                  : !day.total
+                  ? 'Rest'
+                  : `${Math.round((day.done / day.total) * 100)}%`}
+              </strong>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <p className="weekly-hint">
+        {isWeek
+          ? total
+            ? 'Weekly trend. Tap any day in Contributions below to inspect.'
+            : 'No habits scheduled for this week.'
+          : 'Monthly trend. Tap any day in Contributions below to inspect.'}
+      </p>
+    </div>
+  );
 }

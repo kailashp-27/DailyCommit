@@ -8,3 +8,23 @@ it('round-trips an export into clean storage', async () => { await repository.re
 it('keeps one completion per habit per day, and skips mutually exclusive', async () => { await repository.restore(fixture); await repository.setDay('h1','2026-10-10','done'); await repository.setDay('h1','2026-10-10','done'); expect(await db.completions.count()).toBe(1); await repository.setDay('h1','2026-10-10','skip'); expect(await db.completions.count()).toBe(0); expect(await db.skips.count()).toBe(1); });
 it('rejects invalid dates, duplicates and orphaned completions', () => { const invalid={...fixture,completions:[{id:'x:2026-02-30',habitId:'x',date:'2026-02-30',value:1,completedAt:new Date().toISOString()}]}; expect(()=>parseBackup(JSON.stringify({version:1,data:invalid}))).toThrow(); expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,habits:[...fixture.habits,...fixture.habits]}}))).toThrow(); });
 it('rejects unsafe settings and malformed schedules', () => { expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,settings:{...defaults,rolloverHour:25}}}))).toThrow(); expect(()=>parseBackup(JSON.stringify({version:1,data:{...fixture,habits:[{...fixture.habits[0],schedule:{kind:'weekly',target:9}}]}}))).toThrow(); });
+it('accepts and preserves profile, view mode and haptics in backup', () => {
+  const profileSettings = { ...defaults, userName: 'Kailash', birthday: '2000-10-24', todayViewMode: 'minimal' as const, onboarded: true, haptics: false };
+  const backup = parseBackup(JSON.stringify({ version: 4, data: { ...fixture, settings: profileSettings } }));
+  expect(backup.settings.userName).toBe('Kailash');
+  expect(backup.settings.birthday).toBe('2000-10-24');
+  expect(backup.settings.todayViewMode).toBe('minimal');
+  expect(backup.settings.onboarded).toBe(true);
+  expect(backup.settings.haptics).toBe(false);
+});
+it('archives and resumes a habit with the same id and clears archivedAt', async () => {
+  await repository.restore(fixture);
+  await repository.saveHabit({ ...fixture.habits[0], archivedAt: '2026-10-10' });
+  let snapshot = await repository.read();
+  expect(snapshot.habits[0].archivedAt).toBe('2026-10-10');
+  await repository.saveHabit({ ...snapshot.habits[0], archivedAt: null, order: 0 });
+  snapshot = await repository.read();
+  expect(snapshot.habits.length).toBe(1);
+  expect(snapshot.habits[0].id).toBe('h1');
+  expect(snapshot.habits[0].archivedAt).toBeNull();
+});

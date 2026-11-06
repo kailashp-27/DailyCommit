@@ -2,18 +2,19 @@ import HabitDetails from './HabitDetails';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { liveQuery } from 'dexie';
-import { Award, Check, Circle, Flame, Grid2X2, Plus, Settings2, Sparkles, Sun, Undo2, WifiOff, X } from 'lucide-react';
+import { Award, Calendar, Check, ChevronDown, Circle, Copy, Download, Flame, Grid2X2, Layers, Plus, Settings2, Share2, Sparkles, Sun, TrendingUp, Undo2, Upload, WifiOff, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { defaults, groupsFor, key, streaks, today, type Habit, type Vacation, type Settings, type Snapshot } from './domain';
 import { parseBackup, repository, type GroupAction, type GroupUndo } from './repository';
 import { isAndroid, pinWidget, publishWidget, readDeviceData } from './widget';
 import { demoSnapshot } from './demo';
 import { allowReminders, checkWebReminders, syncReminders, watchReminderActions } from './reminders';
-import { downloadBlob } from './share';
+import { downloadBlob, exportOrShareFile } from './share';
 import ActivityPanel from './ActivityPanel';
+import WeeklyProgress from './WeeklyProgress';
 import DayCard from './DayCard';
-import GroupManager from './GroupManager';
-import HabitsList, { habitGroupId } from './HabitsList';
+import GroupsPage from './GroupsPage';
+import HabitsList from './HabitsList';
 import HabitEditor, { type HabitValues } from './HabitEditor';
 import Modal from './Modal';
 import SettingsPage from './SettingsPage';
@@ -21,15 +22,15 @@ import WidgetPage from './WidgetPage';
 import WeeklyReview from './WeeklyReview';
 import BadgeShelf, { BadgeCelebration } from './BadgeShelf';
 import { badges, type BadgeUnlock } from './badges';
-import SpecialDates from './SpecialDates';
 import HabitTemplates from './TemplatePicker';
 import type { HabitTemplate } from './habitTemplates';
 import VacationManager from './VacationManager';
+import Onboarding from './Onboarding';
 
-type View = 'today' | 'activity' | 'habits' | 'settings';
+type View = 'today' | 'activity' | 'habits' | 'groups' | 'settings';
 type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> };
 const empty: Snapshot = { habits: [], completions: [], skips: [], notes: [], settings: defaults };
-const tabs = [['today', Sun, 'Today'], ['activity', Grid2X2, 'Activity'], ['habits', Circle, 'Habits'], ['settings', Settings2, 'Settings']] as const;
+const tabs = [['today', Sun, 'Today'], ['activity', Grid2X2, 'Activity'], ['habits', Circle, 'Habits'], ['groups', Layers, 'Groups'], ['settings', Settings2, 'Settings']] as const;
 export default function App() {
   const [data, setData] = useState<Snapshot>(empty), [loading, setLoading] = useState(true), [storageError, setStorageError] = useState(false), [view, setView] = useState<View>('today');
   const [demo, setDemo] = useState(false), [selected, setSelected] = useState<string | null>(null), [clock, setClock] = useState(Date.now());
@@ -40,6 +41,9 @@ export default function App() {
   const [message, setMessage] = useState(''), [undo, setUndo] = useState<null | (() => Promise<void>)>(null), [busy, setBusy] = useState(false);
   const [messageVersion, setMessageVersion] = useState(0), [unlocks, setUnlocks] = useState<BadgeUnlock[]>([]);
   const [online, setOnline] = useState(navigator.onLine), [install, setInstall] = useState<InstallPrompt | null>(null);
+  const [backupExportJson, setBackupExportJson] = useState<string | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [pasteJsonInput, setPasteJsonInput] = useState('');
   const lock = useRef(false), fileRef = useRef<HTMLInputElement>(null), dailyRef = useRef<HTMLDivElement>(null), activityRef = useRef<HTMLDivElement>(null);
   const logoTaps = useRef(0);
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
@@ -117,39 +121,289 @@ export default function App() {
   const openEditor = (habit: Habit | 'new', group?: string) => { if (demo) { setMessage('Exit sample data to manage habits.'); return; } setHabitPreset(undefined); setNewHabitGroup(habit === 'new' ? group : undefined); setEditor(habit); };
   const openTemplates = () => { if (demo) { setMessage('Exit sample data to add habits.'); return; } setTemplatesOpen(true); };
   const useTemplate = (template: HabitTemplate) => { const { name, icon, color, group, schedule, measurement } = template; setHabitPreset({ name, icon, color, group, schedule, measurement }); setNewHabitGroup(undefined); setTemplatesOpen(false); setEditor('new'); };
-  const exportBackup = () => { void act(async () => {
-    const latest = await repository.read();
-    const exportData = { ...latest, badges: latest.badges?.some(b => b.id === 'backup') ? latest.badges : [...(latest.badges ?? []), { id: 'backup', date: current }] };
-    downloadBlob(new Blob([JSON.stringify({ version: 4, exportedAt: new Date().toISOString(), data: exportData }, null, 2)], { type: 'application/json' }), `dailycommit-${current}.json`);
-    announceBadges(await repository.award('backup', current));
-  }, 'Backup downloaded.'); };
+  const exportBackup = () => {
+    void act(async () => {
+      const latest = await repository.read();
+      const exportData = {
+        ...latest,
+        badges: latest.badges?.some(b => b.id === 'backup')
+          ? latest.badges
+          : [...(latest.badges ?? []), { id: 'backup', date: current }],
+      };
+      const json = JSON.stringify({ version: 4, exportedAt: new Date().toISOString(), data: exportData }, null, 2);
+      setBackupExportJson(json);
+    });
+  };
   const tapLogo = () => { navigate('today'); logoTaps.current++; if (logoTaps.current >= 7 && !demo) { logoTaps.current = 0; void act(async () => announceBadges(await repository.award('egg', current))); } };
   const installApp = async () => { if (isAndroid()) { setMessage('The Android app is already installed.'); return; } if (!install) { setMessage('Browser menu → Install app or Add to Home Screen.'); return; } try { await install.prompt(); await install.userChoice; setInstall(null); } catch { setMessage('Use your browser’s Install app menu.'); } };
   const selectDay = (day: string) => { setSelected(day); requestAnimationFrame(() => dailyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
   const reorder = (index: number, direction: -1 | 1) => { const positions = active.flatMap((h, i) => h.group === active[index].group ? [i] : []), neighbor = positions[positions.indexOf(index) + direction]; if (neighbor === undefined) return; const next = [...active]; [next[index], next[neighbor]] = [next[neighbor], next[index]]; void act(() => repository.reorder(next)); };
+  if (!loading && !storageError && !demo && !data.settings.onboarded) {
+    return <div className="app" data-theme={mode} data-heat={data.settings.theme}>
+      <main>
+        <header className="topbar">
+          <button className="brand" aria-label="DailyCommit home" onClick={tapLogo}>
+            <span className="brand-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <i key={i}/>)}</span>DailyCommit
+          </button>
+        </header>
+        <Onboarding
+          initialSettings={data.settings}
+          existingHabitsCount={data.habits.length}
+          busy={busy}
+          onFinish={async (settingsOverrides, starterHabits) => {
+            return act(async () => {
+              const updatedSettings: Settings = {
+                ...data.settings,
+                ...settingsOverrides,
+                onboarded: true,
+              };
+              await repository.saveSettings(updatedSettings);
+              for (const habit of starterHabits) {
+                await repository.saveHabit(habit);
+              }
+            }, 'Welcome to DailyCommit!');
+          }}
+          onRestore={async (restoredSnapshot, overrides) => {
+            return act(async () => {
+              const mergedSettings: Settings = {
+                ...restoredSnapshot.settings,
+                ...overrides,
+                onboarded: true,
+              };
+              await repository.restore({
+                ...restoredSnapshot,
+                settings: mergedSettings,
+              });
+            }, 'Backup restored! Welcome back.');
+          }}
+          onMessage={setMessage}
+        />
+      </main>
+      {message && <div className="toast" role="status"><Check size={18}/><span>{message}</span><button className="icon-button" aria-label="Dismiss message" onClick={() => { setMessage(''); setUndo(null); }}><X size={16}/></button></div>}
+    </div>;
+  }
   return <div className="app" data-theme={mode} data-heat={data.settings.theme}>
     <nav className="bottom-nav" aria-label="Main navigation">{tabs.map(([id, Icon, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} className={view === id ? 'active' : ''} onClick={() => navigate(id)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-    <main><header className="topbar"><button className="brand" aria-label="DailyCommit home" onClick={tapLogo}><span className="brand-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <i key={i}/>)}</span>DailyCommit</button>{!online && <span className="offline-status"><WifiOff size={14}/>Offline</span>}</header>
+    <main><header className="topbar"><button className="brand" aria-label={`${tabs.find(tab => tab[0] === view)?.[2] ?? 'Today'} home`} onClick={tapLogo}><span className="brand-mark" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <i key={i}/>)}</span>{tabs.find(tab => tab[0] === view)?.[2] ?? 'Today'}</button>{!online && <span className="offline-status"><WifiOff size={14}/>Offline</span>}</header>
     <div className="content">
       {demo && <div className="demo-banner"><Sparkles size={17}/>Sample data<button onClick={() => setDemo(false)}>Exit <X size={14}/></button></div>}
       {needRefresh && <div className="demo-banner">Update ready<button disabled={!!editor || !!importData} onClick={() => void updateServiceWorker(true)}>Refresh</button></div>}
       {loading ? <div className="empty-state">Loading…</div> : storageError ? <div className="empty-state"><h2>Storage unavailable</h2><p>Allow browser storage, then reopen the app.</p><button className="primary" onClick={() => window.location.reload()}>Reload</button></div> : <>
-        <section className="page-heading"><div><h1>{tabs.find(tab => tab[0] === view)?.[2]}</h1>{view === 'today' && <p>{format(parseISO(current), 'EEEE, d MMM')}</p>}</div>{(view === 'today' || view === 'habits') && <button className="primary add-button" aria-label="Add habit" onClick={() => openEditor('new')}><Plus size={20}/><span>Add habit</span></button>}</section>
-        {view === 'habits' && <GroupManager groups={groupsFor(shown)} habits={shown.habits} busy={busy} onChange={manageGroup} onTemplates={openTemplates} onCreated={name => requestAnimationFrame(() => document.getElementById(habitGroupId(name))?.scrollIntoView({ behavior: 'smooth', block: 'center' }))}/>}
-        {(view === 'today' || view === 'activity') && <>
-          {view === 'today' && active.length > 0 && <div className="streak-strip"><span><Flame size={17}/><strong>{stats.current}</strong> day streak</span><span>Best {stats.best}</span>{stats.milestones.length > 0 && <span className="milestone" title={`${stats.milestones.at(-1)} day milestone`}><Award size={16}/>{stats.milestones.at(-1)}</span>}</div>}
-          {view === 'activity' && <div ref={activityRef} className="day-anchor"><ActivityPanel data={shown} selected={selected ?? undefined} onSelect={selectDay} expanded onError={setMessage}/></div>}
-          <div ref={dailyRef} className="day-anchor">{(view === 'today' || selected !== null) && <DayCard onDetails={setDetailHabit} onToggleGroup={group => void act(() => repository.toggleGroup(group, 'today'))} key={date} data={shown} date={date} current={current} busy={busy} onDate={day => setSelected(view === 'activity' ? day : day === current ? null : day)} onAdd={() => openEditor('new')} onGroup={saveGroup} onState={saveState} onValue={saveValue} onStep={saveStep} onVacation={() => navigate('settings')} onNote={note => act(() => repository.saveNote(note), 'Note saved.')}/>}</div>
-          {view === 'activity' && <><BadgeShelf data={shown} current={current} onColors={() => setView('settings')} onDate={day => { setSelected(day); requestAnimationFrame(() => activityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}/><details className="card review-panel"><summary>Weekly review</summary><WeeklyReview data={shown} current={current}/></details></>}
-        </>}
-        {view === 'habits' && <HabitsList habits={shown.habits} groups={groupsFor(shown)} collapsed={shown.settings.collapsedHabitGroups ?? []} busy={busy} onToggle={group => void act(() => repository.toggleGroup(group, 'habits'))} onAdd={group => openEditor('new', group)} onDetails={setDetailHabit} onArchive={setArchive} onReorder={reorder} onResume={h => void act(() => repository.saveHabit({ ...h, id: crypto.randomUUID(), createdAt: current, archivedAt: null, order: data.habits.length, revisions: [{ from: current, schedule: h.schedule, measurement: h.measurement }] }), 'Habit resumed.')}/>}
-        {view === 'settings' && <SettingsPage settings={data.settings} badges={data.badges ?? []} busy={busy} onSave={saveSettings} onReminder={reminder} onExport={exportBackup} onImport={() => fileRef.current?.click()} onInstall={() => void installApp()} onMessage={setMessage}>
-          <VacationManager data={data} current={current} busy={busy} onAdd={saveVacation} onEnd={endVacation}/>
-          <SpecialDates settings={data.settings} busy={busy} onSave={saveSettings}/>
-          {data.badges?.some(b => b.id === 'ember') && <section className="card settings-card"><h2>Ember glow</h2><button className="mode-toggle" role="switch" aria-label="Heatmap glow" aria-checked={!!data.settings.badgeGlow} onClick={() => void saveSettings({ ...data.settings, badgeGlow: !data.settings.badgeGlow })} disabled={busy}><span>{data.settings.badgeGlow ? 'On' : 'Off'}</span><i className="switch-track"><i/></i></button><p>Unlocked by Ember Mode.</p></section>}
-          <WidgetPage data={shown} busy={busy} onSave={saveSettings} onPin={() => { if (!isAndroid()) { setMessage('Install the Android companion to add the widget.'); return; } void pinWidget().then(result => setMessage(result.supported ? 'Confirm the widget in your launcher.' : 'Home screen → Widgets → DailyCommit.')).catch(() => setMessage('Add DailyCommit from your launcher’s Widgets menu.')); }}/>
-        </SettingsPage>}
-        {!demo && <button className="sample-link" onClick={() => { setSelected(null); setDemo(true); window.scrollTo({ top: 0 }); }}>View sample data</button>}
+        {view === 'today' && (
+          <>
+            <section className="today-header-row">
+              <span className="today-date-text">{format(parseISO(current), 'EEEE, d MMMM')}</span>
+              {active.length > 0 && (
+                <div className="day-streak-badge" title={`${stats.current} day streak`}>
+                  <Flame size={18}/>
+                  <strong>{stats.current}</strong>
+                </div>
+              )}
+            </section>
+            <div ref={dailyRef} className="day-anchor">
+              <DayCard
+                key={date}
+                data={shown}
+                date={date}
+                current={current}
+                busy={busy}
+                onDate={day => setSelected(day === current ? null : day)}
+                onAdd={() => openEditor('new')}
+                onGroup={saveGroup}
+                onState={saveState}
+                onValue={saveValue}
+                onStep={saveStep}
+                onVacation={() => navigate('settings')}
+                onDetails={setDetailHabit}
+                onToggleGroup={name => void repository.toggleGroup(name, 'today')}
+                onNote={note => act(() => repository.saveNote(note), 'Note saved.')}
+              />
+            </div>
+          </>
+        )}
+        {view === 'activity' && (
+          <div className="activity-view-container">
+            {/* 1. Progress (collapsed by default) */}
+            <details className="card activity-section-card">
+              <summary className="activity-section-summary">
+                <div className="activity-section-summary-left">
+                  <TrendingUp size={16} className="section-icon" />
+                  <strong>Progress</strong>
+                </div>
+                <ChevronDown size={17} className="activity-section-chevron" />
+              </summary>
+              <div className="activity-section-body">
+                <WeeklyProgress data={shown} current={current} />
+              </div>
+            </details>
+
+            {/* 2. Contribution (OPEN by default) */}
+            <details className="card activity-section-card" open>
+              <summary className="activity-section-summary">
+                <div className="activity-section-summary-left">
+                  <Calendar size={16} className="section-icon" />
+                  <strong>Contribution</strong>
+                </div>
+                <ChevronDown size={17} className="activity-section-chevron" />
+              </summary>
+              <div className="activity-section-body">
+                <div ref={activityRef} className="day-anchor">
+                  <ActivityPanel
+                    data={shown}
+                    selected={selected ?? undefined}
+                    onSelect={selectDay}
+                    onError={setMessage}
+                  />
+                </div>
+              </div>
+            </details>
+
+            {/* Selected Day details when clicked from Contribution */}
+            {selected !== null && (
+              <div ref={dailyRef} className="day-anchor selected-day-view">
+                <DayCard
+                  key={date}
+                  data={shown}
+                  date={date}
+                  current={current}
+                  busy={busy}
+                  onDate={selectDay}
+                  onAdd={() => openEditor('new')}
+                  onGroup={saveGroup}
+                  onState={saveState}
+                  onValue={saveValue}
+                  onStep={saveStep}
+                  onVacation={() => navigate('settings')}
+                  onDetails={setDetailHabit}
+                  onToggleGroup={name => void repository.toggleGroup(name, 'today')}
+                  onNote={note => act(() => repository.saveNote(note), 'Note saved.')}
+                />
+              </div>
+            )}
+
+            {/* 3. Badges (collapsed by default) */}
+            <details className="card activity-section-card">
+              <summary className="activity-section-summary">
+                <div className="activity-section-summary-left">
+                  <Award size={16} className="section-icon" />
+                  <strong>Badges</strong>
+                  <span className="count-chip">{(shown.badges ?? []).length} earned</span>
+                </div>
+                <ChevronDown size={17} className="activity-section-chevron" />
+              </summary>
+              <div className="activity-section-body">
+                <BadgeShelf
+                  data={shown}
+                  current={current}
+                  onColors={() => setView('settings')}
+                  onDate={day => {
+                    setSelected(day);
+                    requestAnimationFrame(() => activityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                  }}
+                />
+              </div>
+            </details>
+
+            {/* 4. Weekly Review (collapsed by default) */}
+            <details className="card activity-section-card">
+              <summary className="activity-section-summary">
+                <div className="activity-section-summary-left">
+                  <Sparkles size={16} className="section-icon" />
+                  <strong>Weekly Review</strong>
+                </div>
+                <ChevronDown size={17} className="activity-section-chevron" />
+              </summary>
+              <div className="activity-section-body">
+                <WeeklyReview data={shown} current={current} />
+              </div>
+            </details>
+          </div>
+        )}
+        {view === 'habits' && (
+          <HabitsList
+            habits={shown.habits}
+            busy={busy}
+            onNewHabit={() => openEditor('new')}
+            onDetails={setDetailHabit}
+            onArchive={setArchive}
+            onReorder={reorder}
+            onResume={h => void act(() => repository.saveHabit({ ...h, archivedAt: null, order: data.habits.filter(x => !x.archivedAt).length }), 'Habit resumed.', () => repository.saveHabit(h))}
+          />
+        )}
+        {view === 'groups' && (
+          <GroupsPage
+            groups={groupsFor(shown)}
+            habits={shown.habits}
+            busy={busy}
+            onChange={manageGroup}
+            onTemplates={openTemplates}
+            onAddHabit={group => openEditor('new', group)}
+            onHabitDetails={setDetailHabit}
+          />
+        )}
+        {view === 'settings' && (
+          <SettingsPage
+            settings={data.settings}
+            badges={data.badges ?? []}
+            notes={data.notes ?? []}
+            busy={busy}
+            vacationSlot={
+              <VacationManager data={data} current={current} busy={busy} onAdd={saveVacation} onEnd={endVacation} />
+            }
+            widgetSlot={
+              <WidgetPage
+                data={shown}
+                busy={busy}
+                onSave={saveSettings}
+                onPin={() => {
+                  if (!isAndroid()) {
+                    setMessage('Install the Android companion to add the widget.');
+                    return;
+                  }
+                  void pinWidget()
+                    .then(result =>
+                      setMessage(result.supported ? 'Confirm the widget in your launcher.' : 'Home screen → Widgets → DailyCommit.')
+                    )
+                    .catch(() => setMessage('Add DailyCommit from your launcher’s Widgets menu.'));
+                }}
+              />
+            }
+            emberSlot={
+              data.badges?.some(b => b.id === 'ember') ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+                  <span>Ember glow on heatmap</span>
+                  <button
+                    className="mode-toggle"
+                    role="switch"
+                    aria-label="Heatmap glow"
+                    aria-checked={!!data.settings.badgeGlow}
+                    onClick={() => void saveSettings({ ...data.settings, badgeGlow: !data.settings.badgeGlow })}
+                    disabled={busy}
+                  >
+                    <span>{data.settings.badgeGlow ? 'On' : 'Off'}</span>
+                    <i className="switch-track"><i /></i>
+                  </button>
+                </div>
+              ) : undefined
+            }
+            onSave={saveSettings}
+            onReminder={reminder}
+            onExport={exportBackup}
+            onImport={() => setImportModalOpen(true)}
+            onInstall={() => void installApp()}
+            onMessage={setMessage}
+            onSelectDay={day => {
+              setView('today');
+              selectDay(day);
+            }}
+            onDeleteNote={date =>
+              act(
+                () => repository.saveNote({ date, text: '', mood: null, updatedAt: new Date().toISOString() }),
+                'Note deleted.'
+              )
+            }
+          />
+        )}
       </>}
     </div></main>
     <input hidden ref={fileRef} type="file" accept="application/json,.json" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; try { if (file.size > 10_000_000) throw new Error('Backup is too large (maximum 10 MB).'); setImportData(parseBackup(await file.text())); } catch (err) { setMessage(err instanceof Error ? err.message : 'Invalid backup.'); } }}/>
@@ -159,6 +413,112 @@ export default function App() {
     {detailHabit && <HabitDetails habit={shown.habits.find(h => h.id === detailHabit.id) ?? detailHabit} data={shown} current={current} onClose={() => setDetailHabit(null)} onEdit={() => { openEditor(shown.habits.find(h => h.id === detailHabit.id) ?? detailHabit); setDetailHabit(null); }} onDay={day => { setView('activity'); setSelected(day); setDetailHabit(null); window.scrollTo({ top: 0 }); }}/>}
     {editor && <HabitEditor habit={editor} groups={groupsFor(shown)} initialGroup={newHabitGroup} initialValues={habitPreset} onClose={() => setEditor(null)} onSave={saveHabit}/>}
     {archive && <Modal title="Archive habit?" onClose={() => setArchive(null)}><p>{archive.name} will leave your active list. Its history stays.</p><div className="modal-actions"><button className="secondary" onClick={() => setArchive(null)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void act(() => repository.saveHabit({ ...archive, archivedAt: current }), 'Habit archived.', () => repository.saveHabit(archive)).then(saved => { if (saved) setArchive(null); })}>Archive</button></div></Modal>}
+    {backupExportJson && (
+      <Modal title="Export Backup" onClose={() => setBackupExportJson(null)}>
+        <p style={{ margin: '0 0 16px', color: 'var(--text-2)', fontSize: '14px', lineHeight: '1.5' }}>
+          Save your DailyCommit backup file or copy it to keep your habits, history, and streaks safe.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button
+            type="button"
+            className="primary full-width"
+            onClick={async () => {
+              const blob = new Blob([backupExportJson], { type: 'application/json' });
+              const res = await exportOrShareFile(blob, `dailycommit-${current}.json`, 'DailyCommit Backup');
+              announceBadges(await repository.award('backup', current));
+              if (res === 'shared') setMessage('Backup shared or saved.');
+              else setMessage('Backup downloaded.');
+              setBackupExportJson(null);
+            }}
+          >
+            <Share2 size={16} /> Save / Share backup file
+          </button>
+
+          <button
+            type="button"
+            className="secondary full-width"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(backupExportJson);
+                announceBadges(await repository.award('backup', current));
+                setMessage('Backup JSON copied to clipboard! Paste it into Notes or Google Drive.');
+                setBackupExportJson(null);
+              } catch {
+                setMessage('Could not copy to clipboard.');
+              }
+            }}
+          >
+            <Copy size={16} /> Copy backup JSON to clipboard
+          </button>
+
+          <button
+            type="button"
+            className="text-button"
+            style={{ alignSelf: 'center', marginTop: '6px' }}
+            onClick={async () => {
+              const blob = new Blob([backupExportJson], { type: 'application/json' });
+              downloadBlob(blob, `dailycommit-${current}.json`);
+              announceBadges(await repository.award('backup', current));
+              setMessage('Browser download started.');
+              setBackupExportJson(null);
+            }}
+          >
+            <Download size={14} /> Download directly (.json)
+          </button>
+        </div>
+      </Modal>
+    )}
+    {importModalOpen && (
+      <Modal title="Import Backup" onClose={() => { setImportModalOpen(false); setPasteJsonInput(''); }}>
+        <p style={{ margin: '0 0 14px', color: 'var(--text-2)', fontSize: '14px', lineHeight: '1.5' }}>
+          Restore your habits from a backup file (.json) or by pasting your backup text.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button
+            type="button"
+            className="secondary full-width"
+            onClick={() => {
+              setImportModalOpen(false);
+              fileRef.current?.click();
+            }}
+          >
+            <Upload size={16} /> Select .json file from device
+          </button>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+            <label htmlFor="paste-backup-json" style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
+              Or paste backup JSON:
+            </label>
+            <textarea
+              id="paste-backup-json"
+              rows={4}
+              placeholder="Paste JSON content here..."
+              value={pasteJsonInput}
+              onChange={e => setPasteJsonInput(e.target.value)}
+              style={{ width: '100%', fontFamily: 'monospace', fontSize: '12px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+            />
+            <button
+              type="button"
+              className="primary full-width"
+              style={{ marginTop: '8px' }}
+              disabled={!pasteJsonInput.trim()}
+              onClick={() => {
+                try {
+                  const parsed = parseBackup(pasteJsonInput.trim());
+                  setImportModalOpen(false);
+                  setPasteJsonInput('');
+                  setImportData(parsed);
+                } catch (err) {
+                  setMessage(err instanceof Error ? err.message : 'Invalid backup text.');
+                }
+              }}
+            >
+              Preview & Restore
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )}
     {importData && <Modal title="Restore backup?" onClose={() => setImportData(null)}><p>Replace local data with {importData.habits.length} habits, {importData.completions.length} check-ins and {importData.notes?.length ?? 0} notes. Earned badges are kept. Export first to keep your current data.</p><div className="modal-actions"><button className="secondary" onClick={exportBackup}>Export current</button><button className="secondary" onClick={() => setImportData(null)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void act(() => repository.restore(importData), 'Backup restored.').then(saved => { if (saved) setImportData(null); })}>Replace & restore</button></div></Modal>}
   </div>;
 }

@@ -248,7 +248,7 @@ async function recordUndo(row: Completion, newValue: number) {
 export function validSchedule(value: unknown): value is Schedule {
   if (!value || typeof value !== 'object') return false;
   const s = value as Schedule;
-  return s.kind === 'daily' || (s.kind === 'weekdays' && Array.isArray(s.days) && s.days.length > 0 && new Set(s.days).size === s.days.length && s.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) || (s.kind === 'weekly' && Number.isInteger(s.target) && s.target >= 1 && s.target <= 7);
+  return s.kind === 'daily' || (s.kind === 'weekdays' && Array.isArray(s.days) && s.days.length > 0 && new Set(s.days).size === s.days.length && s.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) || (s.kind === 'weekly' && Number.isInteger(s.target) && s.target >= 1 && s.target <= 7 && (s.dueDay === undefined || (Number.isInteger(s.dueDay) && s.dueDay >= 0 && s.dueDay <= 6))) || (s.kind === 'monthly' && Number.isInteger(s.target) && s.target >= 1 && s.target <= 31 && (s.dueDayOfMonth === undefined || (Number.isInteger(s.dueDayOfMonth) && s.dueDayOfMonth >= 1 && s.dueDayOfMonth <= 31)));
 }
 export const validReminder = (value: unknown): value is { enabled: boolean; time: string } => !!value && typeof value === 'object' && typeof (value as { enabled: unknown }).enabled === 'boolean' && typeof (value as { time: unknown }).time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test((value as { time: string }).time);
 function validMeasurement(value: unknown): value is Measurement {
@@ -275,6 +275,12 @@ export function parseBackup(raw: string): Snapshot {
   if (settings.reminder !== undefined && (!settings.reminder || typeof settings.reminder.enabled !== 'boolean' || typeof settings.reminder.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(settings.reminder.time))) throw new Error('Invalid reminder setting.');
   if (settings.specialDates !== undefined && (!Array.isArray(settings.specialDates) || settings.specialDates.length > 366 || settings.specialDates.some(d => !validDay(d)))) throw new Error('Invalid special dates.');
   if (settings.badgeGlow !== undefined && typeof settings.badgeGlow !== 'boolean') throw new Error('Invalid badge glow setting.');
+  if (settings.userName !== undefined && (typeof settings.userName !== 'string' || settings.userName.length > 80)) throw new Error('Invalid user name.');
+  if (settings.birthday !== undefined && (typeof settings.birthday !== 'string' || settings.birthday.length > 20)) throw new Error('Invalid birthday.');
+  if (settings.todayViewMode !== undefined && !['minimal', 'swipe', 'grouped'].includes(settings.todayViewMode)) throw new Error('Invalid view mode.');
+  if (settings.widgetType !== undefined && !['heatmap', 'hybrid'].includes(settings.widgetType)) throw new Error('Invalid widget type.');
+  if (settings.onboarded !== undefined && typeof settings.onboarded !== 'boolean') throw new Error('Invalid onboarding setting.');
+  if (settings.haptics !== undefined && typeof settings.haptics !== 'boolean') throw new Error('Invalid haptics setting.');
   if (data.badges !== undefined && (!Array.isArray(data.badges) || data.badges.some(b => !b || !badgeIds.has(b.id) || !validDay(b.date)) || new Set(data.badges.map(b => b.id)).size !== data.badges.length)) throw new Error('Invalid badges.');
   if (data.badgeEvents !== undefined && (!Array.isArray(data.badgeEvents) || data.badgeEvents.some(e => !e || typeof e.id !== 'string' || !e.id || e.kind !== 'undo' || !validDay(e.date)) || new Set(data.badgeEvents.map(e => e.id)).size !== data.badgeEvents.length)) throw new Error('Invalid badge events.');
   const ids = new Set<string>();
@@ -284,6 +290,7 @@ export function parseBackup(raw: string): Snapshot {
     ids.add(h.id);
     if (h.group !== undefined && (typeof h.group !== 'string' || !h.group.trim() || h.group.length > 40)) throw new Error('Invalid habit group.');
     if (h.reminder !== undefined && !validReminder(h.reminder)) throw new Error('Invalid habit reminder.');
+    if (h.goalDate !== undefined && h.goalDate !== null && !validDay(h.goalDate)) throw new Error('Invalid habit goal date.');
     habitById.set(h.id, h);
     if (h.measurement !== undefined && !validMeasurement(h.measurement)) throw new Error('Invalid habit target.');
     if (h.revisions.some(r => r.measurement !== undefined && !validMeasurement(r.measurement))) throw new Error('Invalid historical target.');
@@ -312,5 +319,5 @@ export function parseBackup(raw: string): Snapshot {
     if (!n || !validDay(n.date) || typeof n.text !== 'string' || n.text.length > 2000 || (n.mood !== null && !['great', 'good', 'okay', 'low', 'rough'].includes(n.mood)) || typeof n.updatedAt !== 'string' || Number.isNaN(Date.parse(n.updatedAt)) || noteDays.has(n.date)) throw new Error('Invalid or duplicate day note.');
     noteDays.add(n.date);
   }
-  return { badges: data.badges ?? [], badgeEvents: data.badgeEvents ?? [], habits: data.habits, completions: data.completions, skips: data.skips, notes: data.notes ?? [], settings: { ...settings, theme: themeFor(settings.theme).id, mode: settings.mode ?? 'dark' } };
+  return { badges: data.badges ?? [], badgeEvents: data.badgeEvents ?? [], habits: data.habits, completions: data.completions, skips: data.skips, notes: data.notes ?? [], settings: { ...settings, theme: themeFor(settings.theme).id, mode: settings.mode ?? 'dark', haptics: settings.haptics ?? true } };
 }

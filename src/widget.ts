@@ -26,7 +26,8 @@ export function createWidgetSnapshot(data: Snapshot): WidgetSnapshot {
     });
     return { date, tasks };
   });
-  return { version: 1, updatedAt: new Date().toISOString(), today: current, rolloverHour: data.settings.rolloverHour, done: summary.done, total: summary.total, theme: data.settings.theme, accent: themeFor(data.settings.theme).accent[data.settings.mode ?? 'dark'], mode: data.settings.mode ?? 'dark', colors: getPalette(data.settings), days: history.slice(-182), history, upcoming, months: data.settings.widgetMonths ?? 6, quickHabits: data.habits.map(h => ({ id: h.id, name: h.name })), quickDays };
+  const isHeatmapOnly = data.settings.widgetType === 'heatmap';
+  return { version: 1, updatedAt: new Date().toISOString(), today: current, rolloverHour: data.settings.rolloverHour, done: summary.done, total: summary.total, theme: data.settings.theme, accent: themeFor(data.settings.theme).accent[data.settings.mode ?? 'dark'], mode: data.settings.mode ?? 'dark', colors: getPalette(data.settings), days: history.slice(-182), history, upcoming, months: 3, quickHabits: isHeatmapOnly ? [] : data.habits.map(h => ({ id: h.id, name: h.name })), quickDays: isHeatmapOnly ? [] : quickDays };
 }
 export const isAndroid = () => Capacitor.getPlatform() === 'android';
 export async function publishWidget(data: Snapshot) { if (isAndroid()) await bridge.publish({ snapshot: JSON.stringify(createWidgetSnapshot(data)) }); }

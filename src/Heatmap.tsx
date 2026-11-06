@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { addDays, format, parseISO, startOfWeek, differenceInCalendarDays } from 'date-fns';
 import { dayString, daySummary, intensity, getPalette, today, type Snapshot } from './domain';
 
 export default function Heatmap({ data, from, to, selected, onSelect }: { data: Snapshot; from: string; to: string; selected?: string; onSelect?: (date: string) => void }) {
   const current = today(data.settings.rolloverHour);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const grid = useMemo(() => {
     const start = startOfWeek(parseISO(from), { weekStartsOn: data.settings.weekStart }), end = parseISO(to);
     const cells: { date: string; column: number; row: number; level: number; label: string }[] = [], months: { label: string; column: number }[] = [];
@@ -15,11 +16,21 @@ export default function Heatmap({ data, from, to, selected, onSelect }: { data: 
     }
     return { cells, months, columns: Math.floor(differenceInCalendarDays(end, start) / 7) + 1 };
   }, [data, from, to, current]);
+
+  useEffect(() => {
+    if (grid.columns > 32 && scrollRef.current) {
+      const targetCol = grid.cells.find(c => c.date === (selected ?? current))?.column ?? grid.columns;
+      const targetScroll = Math.max(0, targetCol * 17 - 140);
+      scrollRef.current.scrollLeft = targetScroll;
+    }
+  }, [from, to, selected, current, grid.columns]);
+
   const colors = getPalette(data.settings);
   const tabDay = grid.cells.find(c => c.date === selected && c.date <= current)?.date ?? grid.cells.find(c => c.date === current)?.date ?? grid.cells.find(c => c.date <= current)?.date;
-  return <div className={`heatmap-scroll ${data.settings.badgeGlow && data.badges?.some(b => b.id === 'ember') ? 'ember-glow' : ''}`}><svg className={`heatmap ${grid.columns > 32 ? 'full-year' : 'six-month'}`} viewBox={`0 0 ${grid.columns * 17 + 30} 160`} role="group" aria-label="Habit contribution graph">
+  const labeledRows = data.settings.weekStart === 1 ? [0, 2, 4] : [1, 3, 5];
+  return <div ref={scrollRef} className={`heatmap-scroll ${data.settings.badgeGlow && data.badges?.some(b => b.id === 'ember') ? 'ember-glow' : ''}`}><svg className={`heatmap ${grid.columns > 32 ? 'full-year' : 'six-month'}`} viewBox={`0 0 ${grid.columns * 17 + 30} 160`} role="group" aria-label="Habit contribution graph">
     {grid.months.map((m, i) => <text key={i} x={30 + m.column * 17} y={14}>{m.label}</text>)}
-    {[1, 3, 5].map(row => <text key={row} x="0" y={37 + row * 17}>{format(addDays(startOfWeek(parseISO(from), { weekStartsOn: data.settings.weekStart }), row), 'EEE')}</text>)}
+    {labeledRows.map(row => <text key={row} x="0" y={37 + row * 17}>{format(addDays(startOfWeek(parseISO(from), { weekStartsOn: data.settings.weekStart }), row), 'EEE')}</text>)}
     {grid.cells.map(c => <g key={c.date} data-day={c.date} role={onSelect ? 'button' : 'img'} tabIndex={onSelect && c.date <= current ? c.date === tabDay ? 0 : -1 : undefined} aria-disabled={c.date > current || undefined} aria-label={c.label} onClick={() => { if (c.date <= current) onSelect?.(c.date); }} onKeyDown={e => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (c.date <= current) onSelect?.(c.date); return; }
       const offset = ({ ArrowRight: 7, ArrowLeft: -7, ArrowUp: -1, ArrowDown: 1 } as Record<string, number>)[e.key];
