@@ -1,6 +1,7 @@
 node_modules/
 .npm-cache/
 dist/
+.netlify/
 *.tsbuildinfo
 .env*
 !.env.example
